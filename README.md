@@ -100,6 +100,8 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `autoSize` | `true` | Shrinks markers on dense / small views so the line texture stays visible |
 | `target` | `56588` | Planned total deployments for the progress ring (0 hides it) |
 | `panX` | `0.06` | Nudges the survey right (+) or left (-), as a fraction of the free map width |
+| `outlineUrl` | Ibibobo outline | Survey boundary drawn on the map and used for a steady frame (`""` = none) |
+| `scaleKm` | `5` | Scale bar length in km (`0` = automatic) |
 | `padding` | `0.03` | Margin around the survey as a fraction of its size; raise (e.g. `0.15`) to zoom out |
 | `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
 | `interactive` | `false` | Allow pan/zoom (off so scrolling the dashboard is not captured) |

@@ -333,6 +333,7 @@
         dateField: "utc_time",                      // timestamp used to sequence the animation (true UTC instant)
         dateFallbacks: ["local_time", "UTC_Time", "LocalTime"], // tried in order if dateField is absent
         target: 56588,                              // planned total deployments, drives the progress gauge (0 hides it)
+        outlineUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/Ibibobo_3D_Outline/FeatureServer/11",
         timeZone: "America/La_Paz",                 // utc_time is converted to Bolivia local days (UTC-4)
         basemap: "imagery"                          // imagery (satellite) | hillshade | dark
       }
@@ -346,7 +347,7 @@
       secondsPerDay: 1.3,                   // playback speed: seconds of animation per project day
       minDuration: 12,                      // never play faster than this many seconds in total
       maxDuration: 90,                      // never play slower than this many seconds in total
-      holdStart: 1.5,                       // seconds to hold the empty map before playing
+      holdStart: 2.5,                       // seconds to hold the empty map before playing (the outline draws itself here)
       holdEnd: 6,                           // seconds to hold the finished map before looping
       refreshMinutes: 20,                   // re-query the layer at loop end if data is older than this
       reloadHours: 12,                      // full page reload (picks up code changes on wall screens)
@@ -360,6 +361,10 @@
       padding: 0.03,                        // extra margin around the data extent (fraction)
       panX: 0.06,                           // nudge the survey right (+) or left (-), as a fraction of the free map width
       target: 0,                            // planned total for the progress gauge (set per project; 0 hides it)
+      outlineUrl: "",                       // survey outline polygon layer ("" = none)
+      outlineFrame: true,                   // frame the map on the whole outline (steady view) instead of the deployed nodes
+      outlineDraw: true,                    // trace the outline at the start of each loop
+      scaleKm: 5,                           // scale bar length in km (0 = automatic "nice" length)
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
@@ -610,7 +615,10 @@
           rows.push({ x, y, ms: start + day * 864e5 + hour * 36e5 });
         }
       }
-      return { rows, meta: { dateField: "demo", zone: "wallclock", total: rows.length, source: "demo grid" } };
+      // Demo survey outline: a rotated box around the grid, extended north where nothing is deployed yet
+      const corner = (u, v) => [x0 + u * Math.cos(angle) - v * Math.sin(angle), y0 + u * Math.sin(angle) + v * Math.cos(angle)];
+      const ring = [corner(-150, -150), corner(pts * ptSp + 150, -150), corner(pts * ptSp + 150, 56 * lineSp), corner(-150, 56 * lineSp), corner(-150, -150)];
+      return { rows, outline: [ring], meta: { dateField: "demo", zone: "wallclock", total: rows.length, source: "demo grid" } };
     }
 
     // Turn raw rows into the arrays the animation needs
@@ -869,6 +877,7 @@
       const view = new MapView({
         container: "view", map,
         background: { color: [7, 10, 15, 1] },
+        spatialReference: { wkid: 102100 },      // Web Mercator, so the nodes, outline and scale bar always agree
         rotation: CFG.rotation,
         constraints: { snapToZoom: false, rotationEnabled: false },
         ui: { components: [] }   // no SDK widgets (deprecated in 5.x); attribution is drawn by us below
@@ -940,12 +949,21 @@
       // rounded to a "nice" length (1, 2 or 5 x 10^n) that fits in about 170 px.
       function updateFurniture() {
         $("north").style.transform = `rotate(${view.rotation || 0}deg)`;   // rotation = clockwise angle of north
-        const lat = view.center?.latitude ?? 0;
-        const mpp = view.resolution * Math.cos((lat * Math.PI) / 180);
+        // Ground metres per pixel, measured between two screen points 100 px apart at the view centre
+        // (haversine on their lon/lat), so it is correct in any map projection.
+        const a = view.toMap({ x: view.width / 2 - 50, y: view.height / 2 }), b = view.toMap({ x: view.width / 2 + 50, y: view.height / 2 });
+        if (!a || !b || a.latitude == null || b.latitude == null) return;
+        const rad = Math.PI / 180, dLat = (b.latitude - a.latitude) * rad, dLon = (b.longitude - a.longitude) * rad;
+        const hv = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLon / 2) ** 2;
+        const mpp = (2 * 6371008.8 * Math.asin(Math.sqrt(hv))) / 100;
         if (!mpp || !isFinite(mpp)) return;
-        const target = mpp * 170;                         // aim for a bar about 170 px long
-        const p10 = Math.pow(10, Math.floor(Math.log10(target)));
-        const nice = [5, 2, 1].map((k) => k * p10).find((v) => v <= target) || p10;
+        // Fixed length (scaleKm, default 5 km) unless that would be absurdly short or long on this screen
+        let nice = CFG.scaleKm * 1000;
+        if (!(nice > 0) || nice / mpp < 40 || nice / mpp > 320) {
+          const target = mpp * 170;                       // fallback: a "nice" length about 170 px long
+          const p10 = Math.pow(10, Math.floor(Math.log10(target)));
+          nice = [5, 2, 1].map((k) => k * p10).find((v) => v <= target) || p10;
+        }
         $("scalebar").querySelector(".bar").style.width = `${Math.round(nice / mpp)}px`;
         $("scale-lbl").textContent = nice >= 1000 ? `${nf.format(nice / 1000)} km` : `${nf.format(nice)} m`;
       }
@@ -982,10 +1000,17 @@
         if (!rippleLayer) rippleLayer = new GraphicsLayer({ effect: "bloom(0.8, 0.4px, 0.2)", listMode: "hide" });
         map.remove(rippleLayer); map.add(rippleLayer);
 
-        // Frame the survey between the HUD blocks (see fitView)
-        const xs = Float64Array.from(data.rows, (r) => r.x).sort(), ys = Float64Array.from(data.rows, (r) => r.y).sort();
-        const q = (a, f) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))];
-        dataBox = { xmin: q(xs, 0.002), xmax: q(xs, 0.998), ymin: q(ys, 0.002), ymax: q(ys, 0.998) };
+        // Survey outline (read live, like the nodes); failures fall back to framing on the nodes
+        await loadOutline(raw);
+
+        // Frame the survey between the HUD blocks (see fitView): the whole outline when we have one,
+        // otherwise the deployed nodes (ignoring the outermost 0.2% so a stray fix cannot zoom out the map)
+        if (CFG.outlineFrame && outline.box) dataBox = { ...outline.box };
+        else {
+          const xs = Float64Array.from(data.rows, (r) => r.x).sort(), ys = Float64Array.from(data.rows, (r) => r.y).sort();
+          const q = (a, f) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))];
+          dataBox = { xmin: q(xs, 0.002), xmax: q(xs, 0.998), ymin: q(ys, 0.002), ymax: q(ys, 0.998) };
+        }
         await view.when();
         await fitView();
 
@@ -996,10 +1021,86 @@
           metaRows = [["source", raw.meta.source], ["records", nf.format(data.rows.length)], ["date field", raw.meta.dateField],
             ["day basis", raw.meta.zone], ["first", dateFmt.format(d0)], ["last", dateFmt.format(d1)],
             ["days", data.nDays], ["fetched", timeFmt.format(new Date())]];
+          if (outline.status) metaRows.push(["outline", outline.status]);
           renderMeta();
         }
         hideOverlay();
         return true;
+      }
+
+      // ---- Survey outline: thin glowing boundary that traces itself each loop ----
+      // Rings are kept as arrays of [x, y] (Web Mercator). drawOutline(f) shows the first
+      // fraction f of the total perimeter, so the boundary is "drawn" like a pen at loop start.
+      let outline = { rings: [], box: null, total: 0, status: "" }, outlineLayer = null, outlineGlow = null, outlineLine = null, lastOutlineF = -1;
+      async function loadOutline(raw) {
+        outline = { rings: [], box: null, total: 0, status: "" };
+        try {
+          if (raw.outline) outline.rings = raw.outline;                          // demo
+          else if (CFG.outlineUrl) {
+            const layer = new FeatureLayer({ url: CFG.outlineUrl, outFields: [] });
+            const fs = await layer.queryFeatures({ where: "1=1", returnGeometry: true, outSpatialReference: { wkid: 102100 } });
+            for (const g of fs.features) {
+              const geom = g.geometry; if (!geom) continue;
+              // Polygons: close each ring; polylines: use paths as they are
+              for (const r of geom.rings || geom.paths || []) {
+                const ring = r.map((p) => [p[0], p[1]]);
+                if (geom.rings && (ring[0][0] !== ring.at(-1)[0] || ring[0][1] !== ring.at(-1)[1])) ring.push([...ring[0]]);
+                outline.rings.push(ring);
+              }
+            }
+          } else return;
+          if (!outline.rings.length) { outline.status = "no geometry"; return; }
+          // Extent and total perimeter (for the tracing animation)
+          let [xmin, xmax, ymin, ymax] = [Infinity, -Infinity, Infinity, -Infinity];
+          for (const r of outline.rings) {
+            r.cum = [0];
+            for (let i = 0; i < r.length; i++) {
+              const [x, y] = r[i];
+              xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); ymin = Math.min(ymin, y); ymax = Math.max(ymax, y);
+              if (i) r.cum.push(r.cum[i - 1] + Math.hypot(x - r[i - 1][0], y - r[i - 1][1]));
+            }
+            outline.total += r.cum.at(-1);
+          }
+          outline.box = { xmin, xmax, ymin, ymax };
+          outline.status = `${outline.rings.length} ring${outline.rings.length > 1 ? "s" : ""}`;
+          // Two lines: a soft wide glow under a crisp thin line
+          if (!outlineLayer) {
+            outlineLayer = new GraphicsLayer({ listMode: "hide" });
+            outlineGlow = new Graphic({ symbol: { type: "simple-line", color: [232, 238, 245, 0.18], width: 6, cap: "round", join: "round" } });
+            outlineLine = new Graphic({ symbol: { type: "simple-line", color: [240, 244, 248, 0.9], width: 1.6, cap: "round", join: "round" } });
+            outlineLayer.addMany([outlineGlow, outlineLine]);
+          }
+          map.remove(outlineLayer); map.add(outlineLayer, 0);                     // under the nodes, above the basemap
+          lastOutlineF = -1; drawOutline(1);
+        } catch (e) {
+          console.warn("Outline unavailable:", e);
+          outline.status = `unavailable (${String(e.message || e).slice(0, 30)})`;
+        }
+      }
+      function drawOutline(f) {
+        if (!outlineLayer || !outline.total) return;
+        f = Math.min(Math.max(f, 0), 1);
+        if (Math.abs(f - lastOutlineF) < 0.002) return;                            // nothing visible changed
+        lastOutlineF = f;
+        let budget = f * outline.total;                                           // perimeter length still to draw
+        const paths = [];
+        for (const r of outline.rings) {
+          if (budget <= 0) break;
+          const len = r.cum.at(-1);
+          if (budget >= len) { paths.push(r); budget -= len; continue; }
+          // Partial ring: whole segments, then the cut segment up to the pen tip
+          const path = [r[0]];
+          for (let i = 1; i < r.length; i++) {
+            if (r.cum[i] <= budget) { path.push(r[i]); continue; }
+            const t = (budget - r.cum[i - 1]) / (r.cum[i] - r.cum[i - 1]);
+            path.push([r[i - 1][0] + (r[i][0] - r[i - 1][0]) * t, r[i - 1][1] + (r[i][1] - r[i - 1][1]) * t]);
+            break;
+          }
+          if (path.length > 1) paths.push(path);
+          budget = 0;
+        }
+        const geom = paths.length ? { type: "polyline", paths, spatialReference: { wkid: 102100 } } : null;
+        outlineGlow.geometry = geom; outlineLine.geometry = geom;
       }
 
       // ---- Progress gauge: deployed so far vs the planned total ---------------
@@ -1082,7 +1183,9 @@
 
         if (phase === "holdStart") {
           setT(-0.01);
-          if (el >= CFG.holdStart) { phase = "play"; phaseStart = now; }
+          // Outline traces itself over most of the opening hold (eased), then stays
+          if (CFG.outlineDraw) { const f = Math.min(el / (CFG.holdStart * 0.85), 1); drawOutline(1 - Math.pow(1 - f, 3)); }
+          if (el >= CFG.holdStart) { phase = "play"; phaseStart = now; drawOutline(1); }
         } else if (phase === "play") {
           const p = Math.min(el / playSeconds(), 1);
           setT(p * data.nDays);
@@ -1116,7 +1219,7 @@
         const f = Math.min(Math.max((e.clientX - rect.left - SCRUB_PAD) / (rect.width - 2 * SCRUB_PAD), 0), 1);
         const now = performance.now();
         phase = "play"; phaseStart = now - f * playSeconds() * 1000;
-        clearRipples(); lastDayIdx = Math.floor(f * data.nDays);
+        clearRipples(); lastDayIdx = Math.floor(f * data.nDays); drawOutline(1);   // jumping mid-trace shows the full outline
         if (paused) { paused = false; $("tl-play").classList.remove("paused"); status(CFG.demo ? "Demo data" : `Live · updated ${timeFmt.format(new Date(lastFetch))}`); }
         setT(f * data.nDays);
       });
