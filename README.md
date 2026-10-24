@@ -101,6 +101,8 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `target` | `56588` | Planned total deployments for the progress ring (0 hides it) |
 | `panX` | `0.06` | Nudges the survey right (+) or left (-), as a fraction of the free map width |
 | `outlineUrl` | Ibibobo outline | Survey boundary drawn on the map and used for a steady frame (`""` = none) |
+| `outlineSeconds` / `camMoveSeconds` | `2.5` / `1.8` | Opening sequence: the outline traces itself on the whole survey, then the camera moves in to day 1 |
+| `scrim` | `0.55` | Darkness of the soft band behind the left text (`0` = off, `0.8` = strong) |
 | `scaleKm` | `5` | Scale bar length in km (`0` = automatic) |
 | `camera` | `pan` | `pan`: one fixed zoom, gliding from each day's work area to the next (zooms in once at loop start, out once at the end); `static`: whole survey, no motion |
 | `camSecondsPerDay` / `camMaxDuration` | `1.8` / `100` | Playback speed and longest loop while the camera pans |
