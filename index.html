@@ -356,6 +356,7 @@
       maxDuration: 90,                      // never play slower than this many seconds in total
       holdStart: 1.5,                       // seconds to hold before playing when there is no outline / pan camera
       outlineSeconds: 2.5,                  // opening: time for the outline to trace itself, with the whole survey in view
+      outlinePause: 1.2,                    // opening: pause on the complete outline, still zoomed out, before moving in
       camMoveSeconds: 1.8,                  // opening: time for the camera to move in to day 1, after the outline is drawn
       holdEnd: 6,                           // seconds to hold the finished map before looping
       refreshMinutes: 20,                   // re-query the layer at loop end if data is older than this
@@ -1268,9 +1269,10 @@
           //   2. a short beat with the finished outline (0.4 s)
           //   3. the camera moves in to the first day's work area (camMoveSeconds, pan camera only)
           const tracing = CFG.outlineDraw && outline.total ? CFG.outlineSeconds : 0;
-          const moveStart = tracing + (tracing ? 0.4 : 0);
+          const moveStart = tracing + (outline.total ? CFG.outlinePause : 0);   // hold on the complete outline, zoomed out
           const openLen = panCam() ? moveStart + CFG.camMoveSeconds : Math.max(CFG.holdStart, moveStart);
           if (tracing) { const f = Math.min(el / tracing, 1); drawOutline(1 - Math.pow(1 - f, 3)); }   // eased pen trace
+          else drawOutline(1);
           camBlend = panCam() ? smooth((el - moveStart) / CFG.camMoveSeconds) : 0;              // stays zoomed out until the trace is done
           setT(-0.01);
           if (el >= openLen) { phase = "play"; phaseStart = now; drawOutline(1); camBlend = 1; }
@@ -1329,6 +1331,7 @@
 
       if (await loadData()) {
         status(CFG.demo ? "Demo data" : `Live · updated ${timeFmt.format(new Date())}`);
+        phase = "holdStart"; phaseStart = performance.now(); camBlend = 0;   // opening starts now, on the whole survey
         requestAnimationFrame(tick);
       }
       window.__anim = { get data() { return data; }, setT, view };   // handy for debugging from the console
