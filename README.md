@@ -100,6 +100,9 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `autoSize` | `true` | Shrinks markers on dense / small views so the line texture stays visible |
 | `target` | `56588` | Planned total deployments for the progress ring (0 hides it) |
 | `panX` | `0.06` | Nudges the survey right (+) or left (-), as a fraction of the free map width |
+| `tracksUrl` | InReach view | Crew tracking layer; crews appear as walking icons with a short trail, day by day only (`""` turns crews off) |
+| `tracksTimeField` | `time_utc` | Tracking timestamp (UTC), converted to Bolivia local days |
+| `trailHours` | `3` | Length of each crew's trail within the current day |
 | `padding` | `0.03` | Margin around the survey as a fraction of its size; raise (e.g. `0.15`) to zoom out |
 | `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
 | `interactive` | `false` | Allow pan/zoom (off so scrolling the dashboard is not captured) |

@@ -97,6 +97,7 @@
       pointer-events: none; text-align: left;
     }
     #stats-row { display: flex; align-items: flex-end; gap: clamp(18px, 3vw, 40px); }
+    .stat.crews .num { font-size: clamp(22px, 3.2vw, 42px); color: #8fd8ff; }   /* crews use the cool tones of their dots */
     .stat .num {
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
       font-size: clamp(32px, 5.2vw, 72px); line-height: 1; font-variant-numeric: tabular-nums;
@@ -189,14 +190,17 @@
     #debug {
       width: fit-content;
       font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8eef5; text-align: left;
-      white-space: pre; display: none; z-index: 5;
+      white-space: nowrap; display: none; z-index: 5;
+      grid-template-columns: auto auto auto auto; column-gap: 10px; row-gap: 1px;   /* two key/value columns */
       background: rgba(7, 10, 15, 0.42);                    /* transparent dark glass */
       border: 1px solid rgba(232, 238, 245, 0.16); border-radius: 6px; padding: 8px 12px;
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
     }
+    #debug .k { color: rgba(232,238,245,0.6); }
+    #debug .v { color: #e8eef5; margin-right: 18px; }
     /* ---------- Progress gauge ---------- */
     .stat.gauge { display: flex; flex-direction: column; align-items: center; }
-    .ring-wrap { position: relative; width: min(clamp(100px, 11vw, 160px), 19vh); aspect-ratio: 1; }   /* gauge size (shrinks on short screens) */
+    .ring-wrap { position: relative; width: min(clamp(100px, 11vw, 160px), 17vh); aspect-ratio: 1; }   /* gauge size (shrinks on short screens) */
     .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }   /* start at 12 o'clock */
     .g-track { fill: none; stroke: rgba(232,238,245,0.14); stroke-width: 7; }
     .g-ticks { fill: none; stroke: rgba(232,238,245,0.35); stroke-width: 3; stroke-dasharray: 0.6 29.56; }  /* 10 ticks on r=48 */
@@ -241,6 +245,7 @@
       <div id="stats-row">
         <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
         <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
+        <div class="stat crews" id="stat-crews" style="display:none"><div class="num" id="n-crews">0</div><div class="lbl">Crews in field</div></div>
       </div>
       <!-- Progress gauge: share of the planned total deployed so far (centred under the counters) -->
       <div class="stat gauge" id="stat-gauge">
@@ -325,6 +330,10 @@
       // Bolivia 3D - accepted node deployments (hosted layer: Bolivia_3D_Deployed_Nodes_Accepted)
       bolivia3d: {
         layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
+        // InReach crew tracking (Bolivia_3D_InReach_Tracking_View). Fields are detected automatically;
+        // set tracksTimeField / tracksIdField to override.
+        tracksUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/Bolivia_3D_InReach_Tracking_View/FeatureServer/105",
+        tracksTimeField: "time_utc",                // InReach fix time (UTC), converted to Bolivia local days
         eyebrow: "Bolivia 3D Seismic Operations",                     // small caps line above the title (logo sits above it)
         title: "Ibibobo Node Deployment",           // main title
         dateField: "utc_time",                      // timestamp used to sequence the animation (true UTC instant)
@@ -357,6 +366,10 @@
       padding: 0.03,                        // extra margin around the data extent (fraction)
       panX: 0.06,                           // nudge the survey right (+) or left (-), as a fraction of the free map width
       target: 0,                            // planned total for the progress gauge (set per project; 0 hides it)
+      tracksUrl: "",                        // InReach / tracking layer for moving crew dots ("" = off)
+      tracksTimeField: "",                  // tracking timestamp field (auto-detected when empty)
+      tracksIdField: "",                    // device / crew name field (auto-detected when empty)
+      trailHours: 3,                        // length of each crew's fading trail, in hours of project time
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
@@ -949,6 +962,13 @@
 
       // ---- Data (re)loading --------------------------------------------------
       let data, mainLayer, ghostLayer, rippleLayer, lastFetch = 0, lastT = NaN;
+      // Metadata as key/value pairs, laid out in two columns so the box stays short
+      let metaRows = [];
+      const esc = (v) => String(v).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+      function renderMeta() {
+        $("debug").style.display = "grid";
+        $("debug").innerHTML = metaRows.map(([k, v]) => `<span class="k">${esc(k)}</span><span class="v">${esc(v)}</span>`).join("");
+      }
       // Faint full footprint drawn under the animation
       const ghostRenderer = () => ({ type: "simple", symbol: { type: "simple-marker", size: Math.max(1, SIZE.node * 0.6), color: [180, 200, 225, 0.08], outline: null } });
       async function loadData() {
@@ -983,14 +1003,146 @@
         const d0 = new Date(data.firstDay * 864e5), d1 = new Date(data.lastDay * 864e5);
 
         if (CFG.debug) {                               // metadata block, shown by default
-          $("debug").style.display = "block";
-          $("debug").textContent =
-            `source     ${raw.meta.source}\nrecords    ${nf.format(data.rows.length)}\ndate field ${raw.meta.dateField}\n` +
-            `day basis  ${raw.meta.zone}\nfirst      ${dateFmt.format(d0)}\n` +
-            `last       ${dateFmt.format(d1)}\ndays       ${data.nDays}\nfetched    ${timeFmt.format(new Date())}`;
+          metaRows = [["source", raw.meta.source], ["records", nf.format(data.rows.length)], ["date field", raw.meta.dateField],
+            ["day basis", raw.meta.zone], ["first", dateFmt.format(d0)], ["last", dateFmt.format(d1)],
+            ["days", data.nDays], ["fetched", timeFmt.format(new Date())]];
+          renderMeta();
         }
         hideOverlay();
+        loadTracks();                                  // crews load in the background; nodes play meanwhile
         return true;
+      }
+
+      // ---- Crews: moving InReach positions with short fading trails ------------
+      // Each device becomes a crew icon that moves through the day in step with the
+      // playhead, with a trail of its last few hours. Crews are shown day by day only:
+      // nothing carries over from previous days, and a device with no fix in the last
+      // 2 hours (or none yet today) is treated as out of the field and hidden.
+      const CREW_TRAIL = "#7AE7FF";                    // one cool colour for all crew trails (contrasts with the green nodes)
+      // Walking-figure icon in a white disc, matching the crew symbol on the dashboard
+      const CREW_ICON = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>" +
+        "<circle cx='16' cy='16' r='15' fill='white' stroke='#0b0f14' stroke-width='1.2'/>" +
+        "<circle cx='17.6' cy='7.4' r='2.3' fill='#0b0f14'/>" +
+        "<g fill='none' stroke='#0b0f14' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'>" +
+        "<path d='M16.6 11 L14.6 18 L17.6 21.2 L18.6 26'/><path d='M14.6 18 L12.2 21.6 L10.2 25'/>" +
+        "<path d='M15.8 12.8 L12.4 15.4 L11.4 18'/><path d='M16.2 12.4 L19.4 15 L22 15.6'/></g></svg>");
+      const ACTIVE_GAP = 2 / 24;                       // days: longer than this since the last fix = not in field
+      let crews = [], crewLayer = null, crewMeta = null;
+
+      // Synthetic crews for ?demo=1: four crews walking the demo grid in deployment order
+      function demoTracks() {
+        const byCrew = [[], [], [], []];
+        data.rows.forEach((r, i) => byCrew[Math.floor(i / 55) % 4].push(r));
+        return byCrew.map((rows, k) => {
+          const pts = []; let lastMin = -1;
+          for (const r of rows) {                        // one fix every ~10 minutes, like an InReach
+            const m = Math.floor(r.t * 144);
+            if (m !== lastMin) { pts.push([r.t, r.x + 40, r.y + 40]); lastMin = m; }
+          }
+          return { id: `Crew ${k + 1}`, pts };
+        });
+      }
+
+      async function loadTracks() {
+        if (!data || (!CFG.tracksUrl && !CFG.demo)) return;
+        try {
+          let groups;
+          if (CFG.demo) { groups = demoTracks(); crewMeta = { src: "demo crews", n: groups.reduce((a, g) => a + g.pts.length, 0) }; }
+          else {
+            const layer = new FeatureLayer({ url: CFG.tracksUrl, outFields: [] });
+            await layer.load();
+            const names = layer.fields.map((f) => f.name);
+            const find = (n) => n && names.find((x) => x.toLowerCase() === String(n).toLowerCase());
+            // Timestamp: configured, else a date field that looks like a fix time (not the edit-tracking fields)
+            const dateFields = layer.fields.filter((f) => f.type === "date" && !/^(creation|edit)/i.test(f.name)).map((f) => f.name);
+            const timeField = find(CFG.tracksTimeField) || dateFields.find((n) => /time|date|fix|utc/i.test(n)) || dateFields[0];
+            // Device / crew: configured, else the most name-like text field
+            const textFields = layer.fields.filter((f) => f.type === "string").map((f) => f.name);
+            const idField = find(CFG.tracksIdField)
+              || [/team|crew/i, /display|map.?name|device.?name/i, /^name$|name/i, /imei|device|unit|serial/i]
+                   .map((re) => textFields.find((n) => re.test(n))).find(Boolean);
+            if (!timeField || !idField) throw new Error(`tracking fields not found (time: ${timeField}, id: ${idField})`);
+            // Same day logic as the nodes: local-style fields are wall clock, others are converted to the project zone
+            const zone = /local/i.test(timeField) ? null
+              : (layer.dateFieldsTimeZone && !["UTC", "Etc/UTC", "GMT", "unknown"].includes(layer.dateFieldsTimeZone)) ? layer.dateFieldsTimeZone : CFG.timeZone;
+            const parts = makeLocalParts(zone);
+            const dayNum = (y, m, d) => Math.round(Date.UTC(y, m, d) / 864e5);
+            // Only fixes from the day before the first deployment onwards
+            const from = new Date((data.firstDay - 1) * 864e5).toISOString().slice(0, 10);
+            const where = `${timeField} >= TIMESTAMP '${from} 00:00:00'`;
+            const total = await layer.queryFeatureCount({ where });
+            const pageSize = layer.capabilities?.query?.maxRecordCount || 2000;
+            const starts = []; for (let st = 0; st < total; st += pageSize) starts.push(st);
+            const byId = new Map();
+            const worker = async () => {
+              while (starts.length) {
+                const start = starts.shift();
+                const fs = await layer.queryFeatures({ where, outFields: [layer.objectIdField, timeField, idField], returnGeometry: true,
+                  start, num: pageSize, orderByFields: [layer.objectIdField], outSpatialReference: { wkid: 102100 } });
+                for (const g of fs.features) {
+                  const ms = g.attributes[timeField], id = g.attributes[idField];
+                  if (!g.geometry || ms == null || id == null) continue;
+                  const [y, m, d, sec] = parts(ms);
+                  const t = dayNum(y, m, d) - data.firstDay + sec / 86400;   // project time, same scale as the nodes
+                  if (!byId.has(id)) byId.set(id, []);
+                  byId.get(id).push([t, g.geometry.x, g.geometry.y]);
+                }
+              }
+            };
+            await Promise.all([worker(), worker(), worker()]);
+            groups = [...byId].map(([id, pts]) => ({ id: String(id), pts }));
+            crewMeta = { src: `${timeField} / ${idField}`, n: total };
+          }
+
+          // Build one dot + one trail graphic per device
+          if (!crewLayer) { crewLayer = new GraphicsLayer({ effect: "drop-shadow(0px, 1px, 3px, #000000)", listMode: "hide" }); }
+          crewLayer.removeAll(); map.remove(crewLayer); map.add(crewLayer);
+          crews = groups.filter((g) => g.pts.length).sort((a, b) => a.id.localeCompare(b.id)).map((g, i) => {
+            g.pts.sort((a, b) => a[0] - b[0]);
+            const color = CREW_TRAIL;
+            const trail = new Graphic({ symbol: { type: "simple-line", color: color + "aa", width: 2, cap: "round", join: "round" } });
+            const head = new Graphic({ symbol: { type: "picture-marker", url: CREW_ICON, width: 18, height: 18 } });
+            crewLayer.addMany([trail, head]);
+            return { id: g.id, color, t: Float64Array.from(g.pts, (p) => p[0]), x: Float64Array.from(g.pts, (p) => p[1]), y: Float64Array.from(g.pts, (p) => p[2]), trail, head };
+          });
+          $("stat-crews").style.display = crews.length ? "" : "none";
+          if (CFG.debug) { metaRows.push(["crews", `${crews.length} · ${nf.format(crewMeta.n)} fixes`], ["track keys", crewMeta.src]); renderMeta(); }
+          lastT = NaN;                                   // redraw at the current time
+        } catch (e) {
+          console.warn("Crew tracks unavailable:", e);
+          if (CFG.debug) { metaRows.push(["crews", `unavailable (${String(e.message || e).slice(0, 40)})`]); renderMeta(); }
+        }
+      }
+
+      // Position every crew at project time T; returns how many are in the field
+      function updateCrews(T) {
+        let active = 0;
+        const trailDays = CFG.trailHours / 24;
+        for (const c of crews) {
+          // Last fix at or before T (binary search)
+          let lo = 0, hi = c.t.length;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (c.t[mid] <= T) lo = mid + 1; else hi = mid; }
+          const i = lo - 1;
+          if (i < 0 || T - c.t[i] > ACTIVE_GAP) { c.head.visible = false; c.trail.visible = false; continue; }
+          // Glide between this fix and the next one when they are close in time
+          let px = c.x[i], py = c.y[i];
+          if (i + 1 < c.t.length && c.t[i + 1] - c.t[i] < ACTIVE_GAP) {
+            const f = (T - c.t[i]) / (c.t[i + 1] - c.t[i]);
+            px += (c.x[i + 1] - c.x[i]) * f; py += (c.y[i + 1] - c.y[i]) * f;
+          }
+          // Trail: fixes within the last trailHours of the SAME day only (crews never accumulate across days)
+          const path = [], dayStart = Math.floor(T);
+          if (c.t[i] < dayStart) { c.head.visible = false; c.trail.visible = false; continue; }   // last fix was yesterday
+          for (let j = i; j >= 0 && T - c.t[j] <= trailDays && c.t[j] >= dayStart; j--) path.unshift([c.x[j], c.y[j]]);
+          path.push([px, py]);
+          c.head.geometry = { type: "point", x: px, y: py, spatialReference: { wkid: 102100 } };
+          c.head.visible = true;
+          if (path.length > 1) { c.trail.geometry = { type: "polyline", paths: [path], spatialReference: { wkid: 102100 } }; c.trail.visible = true; }
+          else c.trail.visible = false;
+          active++;
+        }
+        return active;
       }
 
       // ---- Progress gauge: deployed so far vs the planned total ---------------
@@ -1056,6 +1208,7 @@
         $("n-total").textContent = nf.format(k);
         updateGauge(k);
         $("n-day").textContent = nf.format(T < 0 ? 0 : k - countUpTo(data.tSorted, dayIdx - 1e-9));
+        if (crews.length) $("n-crews").textContent = updateCrews(T);   // move the crews and count those in the field
         drawTimeline(data, Math.max(T, 0));
       }
 
