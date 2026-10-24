@@ -42,7 +42,7 @@
     /* Soft vignette to pull the eye to the centre (Milos/John Nelson style framing) */
     #vignette {
       position: absolute; inset: 0; pointer-events: none;
-      background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+      background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.3) 100%);
     }
     /* Dark, low-key attribution so it is present but quiet */
     #attribution {
@@ -57,9 +57,9 @@
       position: absolute; top: var(--gutter); left: var(--gutter);
       pointer-events: none; max-width: 60%;
     }
+    #hud-logo { position: absolute; top: var(--gutter); right: var(--gutter); pointer-events: none; }
     #logo {
-      display: block; height: clamp(20px, 3.4vw, 40px); width: auto;
-      margin-bottom: clamp(6px, 1.2vh, 12px);
+      display: block; height: clamp(24px, 4.2vw, 52px); width: auto;
       filter: drop-shadow(0 1px 6px rgba(0,0,0,0.6));      /* keeps it legible over bright imagery */
     }
     .eyebrow {
@@ -87,16 +87,16 @@
 
     /* ---------- HUD: counters (top-right) ---------- */
     #hud-stats {
-      position: absolute; top: var(--gutter); right: var(--gutter);
-      display: flex; flex-direction: column; align-items: flex-end; gap: clamp(6px, 1.2vh, 14px);
-      pointer-events: none; text-align: right;
+      display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 8px clamp(18px, 3vw, 40px);
+      margin-top: clamp(28px, 6.5vh, 60px);                /* the gap under "Day N of M" */
+      pointer-events: none; text-align: left;
     }
     .stat .num {
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
       font-size: clamp(32px, 5.2vw, 72px); line-height: 1; font-variant-numeric: tabular-nums;
     }
     .stat .lbl { font-size: clamp(10px, 1.1vw, 13px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
-    .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); margin-left: auto; }   /* colour: shared gradient below; auto margin keeps it right-aligned */
+    .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); }   /* colour: shared gradient below */
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
     :root { --tl-h: clamp(72px, 14vh, 104px); }      /* scrubber height, reused by elements stacked above it */
@@ -120,8 +120,25 @@
     #timeline { flex: 1 1 0; min-width: 0; width: 0; height: 100%; display: block; cursor: pointer; }   /* width:0 stops the canvas resolution from widening the row */
 
     /* ---------- Status chip (bottom-right, above timeline) ---------- */
+    /* Right-side map furniture block (vertically centred) */
+    #hud-map {
+      position: absolute; right: var(--gutter); top: 50%; transform: translateY(-50%);
+      display: flex; flex-direction: column; align-items: flex-end; gap: clamp(10px, 2vh, 18px); pointer-events: none;
+    }
+    /* North arrow */
+    #north { width: clamp(22px, 2.8vw, 34px); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #north svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #north text { font: 700 10px "Barlow", sans-serif; fill: var(--ink); }
+    #north .n-light { fill: var(--ink); }
+    #north .n-dark { fill: rgba(232,238,245,0.35); }
+    /* Scale bar: alternating two-segment bar + label */
+    #scalebar { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #scalebar .bar { display: flex; height: 5px; border: 1px solid rgba(232,238,245,0.8); }
+    #scalebar .bar span { flex: 1; }
+    #scalebar .bar span:first-child { background: rgba(232,238,245,0.85); }
+    #scalebar .lbl { font-size: 10px; letter-spacing: 0.1em; color: var(--ink); font-variant-numeric: tabular-nums; }
+    /* Data source / live status */
     #status {
-      position: absolute; right: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 18px);
       font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim);
       display: flex; align-items: center; gap: 6px; pointer-events: none;
     }
@@ -160,7 +177,7 @@
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
     @media (max-height: 340px) {
-      #hud-timeline, #status { display: none; }
+      #hud-timeline, #status, #scalebar { display: none; }
       #date { margin-top: 4px; }
     }
     @media (max-width: 520px) {
@@ -175,21 +192,34 @@
 
   <!-- Title + current date -->
   <div id="hud-title">
-    <img id="logo" alt="Explor" />
     <div class="eyebrow" id="eyebrow">Explor</div>
     <div class="title" id="title">Node Deployment</div>
     <div id="date">&nbsp;</div>
     <div id="dayof">&nbsp;</div>
+
+    <!-- Running counters, side by side under "Day N of M" -->
+    <div id="hud-stats">
+      <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
+      <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
+    </div>
   </div>
 
-  <!-- Running counters -->
-  <div id="hud-stats">
-    <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
-    <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
-  </div>
+  <!-- Company logo (top-right) -->
+  <div id="hud-logo"><img id="logo" alt="Explor" /></div>
 
   <!-- Live status -->
-  <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
+  <!-- Map furniture, right side middle: north arrow, scale bar, data source / live status -->
+  <div id="hud-map">
+    <div id="north" title="North">
+      <svg viewBox="0 0 24 40" aria-hidden="true">
+        <text x="12" y="9" text-anchor="middle">N</text>
+        <path d="M12 13 L18 36 L12 31 Z" class="n-dark"/>   <!-- right half, shaded -->
+        <path d="M12 13 L6 36 L12 31 Z" class="n-light"/>   <!-- left half, light -->
+      </svg>
+    </div>
+    <div id="scalebar"><div class="bar"><span></span><span></span></div><div class="lbl" id="scale-lbl"></div></div>
+    <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
+  </div>
 
   <!-- Daily bars + cumulative curve + playhead -->
   <div id="hud-timeline">
@@ -236,9 +266,9 @@
     const DEFAULTS = {
       portalUrl: "https://www.arcgis.com",  // ArcGIS Online (or your Enterprise portal)
       appId: "h273FIA5tWBYfMOR",            // OAuth client ID ("Bolivia 3D Live Animation" credentials item); public by design
-      secondsPerDay: 0.75,                  // playback speed: seconds of animation per project day
+      secondsPerDay: 1.0,                   // playback speed: seconds of animation per project day
       minDuration: 12,                      // never play faster than this many seconds in total
-      maxDuration: 60,                      // never play slower than this many seconds in total
+      maxDuration: 75,                      // never play slower than this many seconds in total
       holdStart: 1.5,                       // seconds to hold the empty map before playing
       holdEnd: 6,                           // seconds to hold the finished map before looping
       refreshMinutes: 20,                   // re-query the layer at loop end if data is older than this
@@ -255,6 +285,7 @@
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
       nodeColor: "",                        // settled node colour as hex (e.g. 7ED957); empty = default light green
+      brightness: 0.85,                     // satellite basemap brightness (1 = original, lower = darker)
       debug: false                          // ?debug=1 -> diagnostics panel
     };
 
@@ -538,7 +569,7 @@
       const base = [];
       if (CFG.basemap === "imagery") {
         // Desaturated, darkened imagery so the nodes carry the colour
-        base.push(new TileLayer({ url: svc + "World_Imagery/MapServer", effect: "grayscale(0.45) brightness(0.55) contrast(1.1)" }));
+        base.push(new TileLayer({ url: svc + "World_Imagery/MapServer", effect: `grayscale(0.2) brightness(${CFG.brightness}) contrast(1.05)` }));
       } else if (CFG.basemap === "dark") {
         base.push(new TileLayer({ url: svc + "Canvas/World_Dark_Gray_Base/MapServer" }));
       } else {
@@ -812,6 +843,22 @@
         }
         if (ghostLayer) ghostLayer.renderer = ghostRenderer();
         lastT = NaN;                                   // force the animated renderer to rebuild
+        updateFurniture();
+      }
+
+      // ---- North arrow + scale bar -------------------------------------------
+      // Scale: ground metres per pixel at the map centre (Web Mercator stretches by 1/cos(latitude)),
+      // rounded to a "nice" length (1, 2 or 5 x 10^n) that fits in about 110 px.
+      function updateFurniture() {
+        $("north").style.transform = `rotate(${view.rotation || 0}deg)`;   // rotation = clockwise angle of north
+        const lat = view.center?.latitude ?? 0;
+        const mpp = view.resolution * Math.cos((lat * Math.PI) / 180);
+        if (!mpp || !isFinite(mpp)) return;
+        const target = mpp * 110;
+        const p10 = Math.pow(10, Math.floor(Math.log10(target)));
+        const nice = [5, 2, 1].map((k) => k * p10).find((v) => v <= target) || p10;
+        $("scalebar").querySelector(".bar").style.width = `${Math.round(nice / mpp)}px`;
+        $("scale-lbl").textContent = nice >= 1000 ? `${nf.format(nice / 1000)} km` : `${nf.format(nice)} m`;
       }
 
       // ---- Data (re)loading --------------------------------------------------

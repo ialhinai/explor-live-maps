@@ -87,11 +87,12 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
 | `nodeColor` | `55FF00` | Theme colour as hex (settled nodes, title, day counter, scrubber line), e.g. `7ED957`, to match the dashboard map |
+| `brightness` | `0.85` | Satellite basemap brightness (1 = original, lower = darker) |
 | `basemap` | `imagery` | `imagery` (dimmed satellite), `hillshade`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
-| `secondsPerDay` | `0.75` | Playback speed (higher = slower) |
-| `minDuration` / `maxDuration` | `12` / `60` | Bounds on total loop length in seconds (keeps long projects watchable) |
+| `secondsPerDay` | `1.0` | Playback speed (higher = slower) |
+| `minDuration` / `maxDuration` | `12` / `75` | Bounds on total loop length in seconds (keeps long projects watchable) |
 | `holdStart` / `holdEnd` | `1.5` / `6` | Pauses before and after each run, in seconds |
 | `refreshMinutes` | `20` | Re-query between loops when data is older than this |
 | `reloadHours` | `12` | Full page reload interval |
