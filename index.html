@@ -56,6 +56,11 @@
       position: absolute; top: var(--gutter); left: var(--gutter);
       pointer-events: none; max-width: 60%;
     }
+    #logo {
+      display: block; height: clamp(20px, 3.4vw, 40px); width: auto;
+      margin-bottom: clamp(6px, 1.2vh, 12px);
+      filter: drop-shadow(0 1px 6px rgba(0,0,0,0.6));      /* keeps it legible over bright imagery */
+    }
     .eyebrow {
       font-size: clamp(10px, 1.05vw, 12px); letter-spacing: 0.22em; text-transform: uppercase;
       color: var(--ink-dim); font-weight: 600;
@@ -84,7 +89,6 @@
     }
     .stat .lbl { font-size: clamp(9px, 0.95vw, 11px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
     .stat.small .num { font-size: clamp(16px, 2.2vw, 28px); color: var(--accent-warm); }
-    .stat.tiny .num { font-size: clamp(14px, 1.7vw, 22px); color: var(--ink-dim); }
 
     /* ---------- HUD: timeline (bottom) ---------- */
     #hud-timeline {
@@ -138,11 +142,10 @@
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
     @media (max-height: 340px) {
-      #hud-timeline, #status, .stat.tiny { display: none; }
+      #hud-timeline, #status { display: none; }
       #date { margin-top: 4px; }
     }
     @media (max-width: 520px) {
-      .stat.tiny { display: none; }
       #hud-title { max-width: 55%; }
     }
   </style>
@@ -154,6 +157,7 @@
 
   <!-- Title + current date -->
   <div id="hud-title">
+    <img id="logo" alt="Explor" />
     <div class="eyebrow" id="eyebrow">Explor</div>
     <div class="title" id="title">Node deployment</div>
     <div id="date">&nbsp;</div>
@@ -164,7 +168,6 @@
   <div id="hud-stats">
     <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
     <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
-    <div class="stat tiny" id="stat-positions"><div class="num" id="n-pos">0</div><div class="lbl">Unique positions</div></div>
   </div>
 
   <!-- Live status -->
@@ -198,12 +201,11 @@
       // Bolivia 3D - accepted node deployments (hosted layer: Bolivia_3D_Deployed_Nodes_Accepted)
       bolivia3d: {
         layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
-        eyebrow: "Explor  ·  Bolivia 3D",          // small caps line above the title
+        eyebrow: "Bolivia 3D",                     // small caps line above the title (logo sits above it)
         title: "Node deployment",                   // main title
         dateField: "local_time",                    // timestamp used to sequence the animation
         dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
         timeZone: "America/La_Paz",                 // used only when the chosen field is a true UTC instant
-        uniqueField: "point_id",                    // counts unique positions (re-deployments counted once)
         basemap: "hillshade"                        // hillshade | imagery | dark
       }
     };
@@ -230,6 +232,7 @@
       padding: 0.06,                        // extra margin around the data extent (fraction)
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
+      logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
       debug: false                          // ?debug=1 -> diagnostics panel
     };
 
@@ -288,7 +291,11 @@
     // Static text from config
     $("eyebrow").textContent = CFG.eyebrow;
     $("title").textContent = CFG.title;
-    document.title = `${CFG.title} · ${CFG.eyebrow.replace(/\s*·\s*/g, " ")}`;
+    document.title = `${CFG.title} · Explor ${CFG.eyebrow.replace(/\s*·\s*/g, " ")}`;
+
+    // Company logo (removed quietly if the file is missing)
+    if (CFG.logo) { $("logo").src = CFG.logo; $("logo").onerror = () => $("logo").remove(); }
+    else $("logo").remove();
 
     // =====================================================================
     // 3. LOAD SDK MODULES
@@ -404,7 +411,6 @@
       for (const fb of CFG.dateFallbacks || []) if (!dateField) dateField = find(fb);
       if (!dateField) dateField = layer.fields.find((f) => f.type === "date")?.name;
       if (!dateField) throw new Error("No date field found on the layer - set ?dateField=<name>");
-      const uniqueField = CFG.uniqueField ? find(CFG.uniqueField) : null;
 
       // Decide how to turn the stored value into a local calendar day
       let zone = null;
@@ -418,7 +424,7 @@
       const pageSize = layer.capabilities?.query?.maxRecordCount || 2000;
       const where = `${dateField} IS NOT NULL`;
       const total = await layer.queryFeatureCount({ where });
-      const outFields = [layer.objectIdField, dateField, ...(uniqueField ? [uniqueField] : [])];
+      const outFields = [layer.objectIdField, dateField];
       const pages = [];
       for (let start = 0; start < total; start += pageSize) pages.push(start);
 
@@ -434,14 +440,14 @@
           });
           for (const g of fs.features) {
             if (!g.geometry) continue;
-            rows.push({ x: g.geometry.x, y: g.geometry.y, ms: g.attributes[dateField], key: uniqueField ? g.attributes[uniqueField] : null });
+            rows.push({ x: g.geometry.x, y: g.geometry.y, ms: g.attributes[dateField] });
           }
           done += fs.features.length;
           overlay(`Loading deployment data… ${nf.format(done)} / ${nf.format(total)}`, { spin: true });
         }
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
-      return { rows, meta: { dateField, uniqueField, zone: zone || "wallclock", total, source: layer.title || CFG.layerUrl } };
+      return { rows, meta: { dateField, zone: zone || "wallclock", total, source: layer.title || CFG.layerUrl } };
     }
 
     // Synthetic 3D receiver grid in the Bolivian Chaco for ?demo=1 (no service, no sign-in)
@@ -461,10 +467,10 @@
           const u = P * ptSp + (rand() - 0.5) * 6, v = L * lineSp + (rand() - 0.5) * 6;
           const x = x0 + u * Math.cos(angle) - v * Math.sin(angle), y = y0 + u * Math.sin(angle) + v * Math.cos(angle);
           const hour = 7 + (P / pts) * 10 + rand() * 0.6; // crews work 07:00-17:30 along the line
-          rows.push({ x, y, ms: start + day * 864e5 + hour * 36e5, key: `R_${L}_${P}` });
+          rows.push({ x, y, ms: start + day * 864e5 + hour * 36e5 });
         }
       }
-      return { rows, meta: { dateField: "demo", uniqueField: "demo", zone: "wallclock", total: rows.length, source: "demo grid" } };
+      return { rows, meta: { dateField: "demo", zone: "wallclock", total: rows.length, source: "demo grid" } };
     }
 
     // Turn raw rows into the arrays the animation needs
@@ -478,18 +484,13 @@
       const firstDay = rows[0].day, lastDay = rows[rows.length - 1].day;
       const nDays = lastDay - firstDay + 1;
       const daily = new Array(nDays).fill(0);
-      const seen = new Set();
       const tSorted = new Float64Array(rows.length);   // project time of each record, ascending
-      const uniqCum = new Uint32Array(rows.length);    // unique positions reached by record i
-      let u = 0;
       rows.forEach((r, i) => {
         r.t = (r.day - firstDay) + r.sec / 86400;      // fractional project day
         tSorted[i] = r.t;
         daily[r.day - firstDay]++;
-        if (r.key != null && !seen.has(r.key)) { seen.add(r.key); u++; }
-        uniqCum[i] = r.key != null ? u : i + 1;
       });
-      return { rows, firstDay, lastDay, nDays, daily, tSorted, uniqCum, hasUnique: meta.uniqueField != null, meta };
+      return { rows, firstDay, lastDay, nDays, daily, tSorted, meta };
     }
 
     // Number of records with t <= T (binary search on the sorted array)
@@ -710,13 +711,12 @@
         const d0 = new Date(data.firstDay * 864e5), d1 = new Date(data.lastDay * 864e5);
         $("tl-start").textContent = shortFmt.format(d0).toUpperCase();
         $("tl-end").textContent = shortFmt.format(d1).toUpperCase();
-        $("stat-positions").style.display = data.hasUnique ? "" : "none";
 
         if (CFG.debug) {
           $("debug").style.display = "block";
           $("debug").textContent =
             `source     ${raw.meta.source}\nrecords    ${nf.format(data.rows.length)}\ndate field ${raw.meta.dateField}\n` +
-            `day basis  ${raw.meta.zone}\nunique     ${raw.meta.uniqueField || "-"}\nfirst      ${dateFmt.format(d0)}\n` +
+            `day basis  ${raw.meta.zone}\nfirst      ${dateFmt.format(d0)}\n` +
             `last       ${dateFmt.format(d1)}\ndays       ${data.nDays}\nfetched    ${timeFmt.format(new Date())}`;
         }
         hideOverlay();
@@ -739,7 +739,6 @@
         const k = countUpTo(data.tSorted, T);
         $("n-total").textContent = nf.format(k);
         $("n-day").textContent = nf.format(T < 0 ? 0 : k - countUpTo(data.tSorted, dayIdx - 1e-9));
-        $("n-pos").textContent = nf.format(k ? data.uniqCum[k - 1] : 0);
         drawTimeline(data, Math.max(T, 0));
       }
 

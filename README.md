@@ -7,8 +7,6 @@ A single web page that reads a hosted node-deployment layer **live**, and plays 
 
 Preview without any data or sign-in: open `index.html?demo=1` (synthetic grid in the Chaco).
 
-![Demo preview](preview_demo.gif)
-
 ---
 
 ## How it stays live
@@ -41,7 +39,7 @@ Your daily deployment notebook appends to the hosted layer → the next loop sho
 The service (`a30934`) is **secured** (it returns "Token Required"), so pick one:
 
 **Option A: Public hosted view (zero clicks for viewers).**
-Create a hosted feature layer *view* of `Bolivia_3D_Deployed_Nodes_Accepted`, limit its fields to `local_time` and `point_id`, share the view publicly, and put the view's URL in `layerUrl` (or pass `?layerUrl=`).
+Create a hosted feature layer *view* of `Bolivia_3D_Deployed_Nodes_Accepted`, limit its fields to `local_time`, share the view publicly, and put the view's URL in `layerUrl` (or pass `?layerUrl=`).
 Node coordinates then become readable by anyone who has the URL, so confirm with the PM/client that this is acceptable before doing it.
 
 **Option B: Keep it private, sign in once (recommended for client data).**
@@ -87,7 +85,6 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
-| `uniqueField` | `point_id` | Unique positions counter (re-deployments counted once) |
 | `basemap` | `hillshade` | `hillshade`, `imagery`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
