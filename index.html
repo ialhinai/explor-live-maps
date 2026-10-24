@@ -113,7 +113,9 @@
     .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); }   /* colour: shared gradient below */
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
-    :root { --tl-h: clamp(72px, 14vh, 104px); }      /* scrubber height, reused by elements stacked above it */
+    :root { --tl-h: clamp(90px, 19vh, 170px); }      /* scrubber height, reused by elements stacked above it.
+                                                        Tall enough that day-to-day changes in the daily line read clearly on wide screens */
+    html.lite { --tl-h: clamp(72px, 14vh, 104px); }  /* phones keep the compact bar */
     #hud-timeline {
       position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 10px);
       height: var(--tl-h); display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px); pointer-events: auto;
@@ -222,6 +224,12 @@
     .stat.gauge .lbl { text-align: center; }
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
+    /* Short screens: when the left column would run into the lower group, the metadata box steps aside
+       first ("tight"), then the ring and spacing shrink ("tighter"). Set by fitHud() in the script. */
+    html.tight #debug { display: none !important; }
+    html.tighter .ring-wrap { width: min(clamp(80px, 8vw, 120px), 12vh); }
+    html.tighter #hud-stats { margin-top: clamp(10px, 2.5vh, 30px); gap: 6px; }
+    html.tighter #date { margin-top: clamp(8px, 2vh, 24px); }
     @media (max-width: 600px) {
       html.lite #debug { display: none !important; }   /* phones in portrait only: keep the map clear */
       html.lite .ring-wrap { width: min(26vw, 110px); }
@@ -463,6 +471,23 @@
     function status(text, state = "live") {
       $("status-text").textContent = text;
       $("status").className = state === "live" ? "" : state;
+    }
+
+    // Keep the left column clear of the bottom-left group on short screens (see html.tight / html.tighter)
+    function fitHud() {
+      const root = document.documentElement, lower = document.getElementById("hud-lower");
+      root.classList.remove("tight", "tighter");
+      lower.style.left = "";
+      const clash = () => lower.getBoundingClientRect().top
+                          < document.getElementById("hud-title").getBoundingClientRect().bottom + 14;
+      if (clash()) root.classList.add("tighter");          // 1. smaller ring and spacing
+      if (clash()) {                                        // 2. still too tall: slide the lower group to the right of the left column
+        const right = Math.max(...["hud-stats", "dayof", "date", "title"].map((id) => document.getElementById(id).getBoundingClientRect().right));
+        lower.style.left = `${Math.round(right + 32)}px`;
+      }
+      if (lower.getBoundingClientRect().right > window.innerWidth - 16) {   // 3. no room beside it either: drop the metadata box
+        lower.style.left = ""; root.classList.add("tight");
+      }
     }
 
     // Static text from config
@@ -1154,6 +1179,8 @@
           renderMeta();
         }
         hideOverlay();
+        fitHud();                                      // after the metadata is filled in
+        if (CFG.outlineFrame && outline.box) await fitView();   // re-frame if the left column changed size
         return true;
       }
 
@@ -1414,7 +1441,7 @@
         if (!data) return;
         drawTimeline(data, Math.max(lastT || 0, 0));   // redraw the scrubber at the new width
         if (LITE) drawNodesCanvas(curT);
-        clearTimeout(resizeTimer); resizeTimer = setTimeout(fitView, 250);
+        clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { fitHud(); fitView(); }, 250);
       });
 
       // Full reload every few hours so wall screens pick up code changes too
