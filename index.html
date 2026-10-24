@@ -23,8 +23,8 @@
       --ink-faint: #4a5566;          /* tertiary text, rules */
       --accent-hot: #fff3cf;         /* newborn node (white-hot) */
       --accent-warm: #ffb000;        /* node a few hours old (amber) */
-      --accent-cool: #4fc3f7;        /* node a day old (cyan) */
-      --accent-rest: #2f74c0;        /* settled node (receiver blue) */
+      --accent-cool: #beff78;        /* node a day old (pale lime) */
+      --accent-rest: #55ff00;        /* settled node (dashboard green #55FF00) */
       --panel: rgba(7, 10, 15, 0.62);/* HUD glass panels */
       --gutter: clamp(12px, 2.2vw, 28px);
     }
@@ -62,8 +62,8 @@
       filter: drop-shadow(0 1px 6px rgba(0,0,0,0.6));      /* keeps it legible over bright imagery */
     }
     .eyebrow {
-      font-size: clamp(10px, 1.05vw, 12px); letter-spacing: 0.22em; text-transform: uppercase;
-      color: var(--ink-dim); font-weight: 600;
+      font-size: clamp(12px, 1.55vw, 19px); letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--ink); font-weight: 600;
     }
     .title {
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
@@ -75,7 +75,7 @@
       font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
       text-shadow: 0 0 24px rgba(255, 176, 0, 0.18);
     }
-    #dayof { font-size: clamp(11px, 1.2vw, 14px); color: var(--ink-dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    #dayof { font-size: clamp(13px, 1.6vw, 19px); color: var(--accent-rest); font-weight: 600; letter-spacing: 0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
 
     /* ---------- HUD: counters (top-right) ---------- */
     #hud-stats {
@@ -85,25 +85,35 @@
     }
     .stat .num {
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
-      font-size: clamp(22px, 3.6vw, 48px); line-height: 1; font-variant-numeric: tabular-nums;
+      font-size: clamp(32px, 5.2vw, 72px); line-height: 1; font-variant-numeric: tabular-nums;
     }
-    .stat .lbl { font-size: clamp(9px, 0.95vw, 11px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
-    .stat.small .num { font-size: clamp(16px, 2.2vw, 28px); color: var(--accent-warm); }
+    .stat .lbl { font-size: clamp(10px, 1.1vw, 13px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
+    .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); color: var(--accent-warm); }
 
-    /* ---------- HUD: timeline (bottom) ---------- */
+    /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
+    :root { --tl-h: clamp(44px, 8vh, 62px); }      /* scrubber height, reused by elements stacked above it */
     #hud-timeline {
-      position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 14px);
-      height: clamp(54px, 13vh, 110px); pointer-events: auto; cursor: pointer;
+      position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 10px);
+      height: var(--tl-h); display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px); pointer-events: auto;
     }
-    #timeline { width: 100%; height: 100%; display: block; }
-    #tl-labels {
-      position: absolute; left: 0; right: 0; bottom: -16px; display: flex; justify-content: space-between;
-      font-size: 10px; color: var(--ink-faint); letter-spacing: 0.08em; font-variant-numeric: tabular-nums; pointer-events: none;
+    /* Round play / pause button */
+    #tl-play {
+      flex: none; width: clamp(28px, 3.4vw, 38px); height: clamp(28px, 3.4vw, 38px); border-radius: 50%;
+      border: 1px solid rgba(232,238,245,0.35); background: rgba(7,10,15,0.55); color: var(--ink);
+      display: grid; place-items: center; cursor: pointer; padding: 0;
     }
+    #tl-play:hover { border-color: var(--accent-rest); color: var(--accent-rest); }
+    #tl-play:focus-visible { outline: 2px solid var(--accent-rest); outline-offset: 2px; }
+    #tl-play svg { width: 42%; height: 42%; fill: currentColor; }
+    #tl-play .ic-play { display: none; }
+    #tl-play.paused .ic-play { display: block; }
+    #tl-play.paused .ic-pause { display: none; }
+    /* Track canvas: click anywhere to jump to that day */
+    #timeline { flex: 1; height: 100%; display: block; cursor: pointer; }
 
     /* ---------- Status chip (bottom-right, above timeline) ---------- */
     #status {
-      position: absolute; right: var(--gutter); bottom: calc(var(--gutter) + clamp(54px, 13vh, 110px) + 24px);
+      position: absolute; right: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 18px);
       font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim);
       display: flex; align-items: center; gap: 6px; pointer-events: none;
     }
@@ -135,7 +145,7 @@
 
     /* ---------- Debug panel (?debug=1) ---------- */
     #debug {
-      position: absolute; left: var(--gutter); bottom: calc(var(--gutter) + clamp(54px, 13vh, 110px) + 24px);
+      position: absolute; left: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 18px);
       font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-dim);
       background: var(--panel); padding: 8px 10px; border-radius: 4px; white-space: pre; display: none; z-index: 5;
     }
@@ -174,9 +184,12 @@
   <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
 
   <!-- Daily bars + cumulative curve + playhead -->
-  <div id="hud-timeline" title="Click to pause / resume">
-    <canvas id="timeline"></canvas>
-    <div id="tl-labels"><span id="tl-start"></span><span id="tl-end"></span></div>
+  <div id="hud-timeline">
+    <button id="tl-play" aria-label="Pause / play" title="Pause / play (Space)">
+      <svg class="ic-pause" viewBox="0 0 10 10"><rect x="1.5" y="1" width="2.4" height="8"/><rect x="6.1" y="1" width="2.4" height="8"/></svg>
+      <svg class="ic-play" viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg>
+    </button>
+    <canvas id="timeline" title="Click to jump to a day"></canvas>
   </div>
 
   <div id="debug"></div>
@@ -201,7 +214,7 @@
       // Bolivia 3D - accepted node deployments (hosted layer: Bolivia_3D_Deployed_Nodes_Accepted)
       bolivia3d: {
         layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
-        eyebrow: "Bolivia 3D",                     // small caps line above the title (logo sits above it)
+        eyebrow: "Bolivia 3D Seismic Operations",                     // small caps line above the title (logo sits above it)
         title: "Node deployment",                   // main title
         dateField: "local_time",                    // timestamp used to sequence the animation
         dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
@@ -233,6 +246,7 @@
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
+      nodeColor: "",                        // settled node colour as hex (e.g. 7ED957); empty = default light green
       debug: false                          // ?debug=1 -> diagnostics panel
     };
 
@@ -249,11 +263,16 @@
 
     // Colour ramp for a node's "age" (days since it was deployed, relative to the playhead)
     const RAMP = {
-      hot:  [255, 243, 207, 1.0],   // 0 h      white-hot flash
-      warm: [255, 176,   0, 1.0],   // ~6 h     amber
-      cool: [ 79, 195, 247, 0.95],  // ~1 day   cyan
-      rest: [ 47, 116, 192, 0.85]   // 3+ days  settled receiver blue (Explor RCV convention)
+      hot:  [255, 250, 225, 1.0],   // 0 h      white-hot flash
+      warm: [255, 214,  64, 1.0],   // ~6 h     warm yellow
+      cool: [190, 255, 120, 0.95],  // ~1 day   pale lime
+      rest: [ 85, 255,   0, 0.85]   // 3+ days  settled #55FF00 (matches the dashboard map)
     };
+    // Optional override of the settled colour from the URL, e.g. ?nodeColor=7ED957
+    if (/^#?[0-9a-f]{6}$/i.test(CFG.nodeColor || "")) {
+      const h = CFG.nodeColor.replace("#", "");
+      RAMP.rest = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 0.85];
+    }
 
     // =====================================================================
     // 2. SMALL DOM HELPERS
@@ -309,6 +328,7 @@
       "@arcgis/core/layers/TileLayer.js",
       "@arcgis/core/Basemap.js",
       "@arcgis/core/Graphic.js",
+      "@arcgis/core/layers/GraphicsLayer.js",
       "@arcgis/core/identity/OAuthInfo.js",
       "@arcgis/core/identity/IdentityManager.js"
     ];
@@ -563,50 +583,88 @@
     }
 
     // =====================================================================
-    // 7. TIMELINE CANVAS: daily bars (Milos-style), cumulative curve, playhead
+    // 7. TIME SCRUBBER (Flourish-style): hairline track, a tick per day,
+    //    month marks, glowing comet playhead. No chart - the map is the story.
     // =====================================================================
-    function drawTimeline(data, T) {
+    const SCRUB_PAD = 10;                                   // px kept free at each end for the playhead glow
+    const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+    function drawTimeline(data, T, now = performance.now()) {
       const cv = $("timeline");
       const dpr = window.devicePixelRatio || 1;
       const w = cv.clientWidth, h = cv.clientHeight;
       if (!w || !h) return;
-      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
       const ctx = cv.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
       const n = data.nDays, max = Math.max(...data.daily, 1);
-      const bw = w / n, gap = Math.min(2, bw * 0.25);
-      const headX = Math.min(T / n, 1) * w;
+      const x = (t) => SCRUB_PAD + (Math.min(Math.max(t, 0), n) / n) * (w - 2 * SCRUB_PAD);   // project day -> px
+      const y = Math.round(h * 0.42) + 0.5;                                                    // track line
+      const headX = x(T);
 
-      // Baseline
-      ctx.fillStyle = "rgba(138,151,168,0.25)"; ctx.fillRect(0, h - 1, w, 1);
+      // Hairline track
+      ctx.fillStyle = "rgba(232,238,245,0.16)"; ctx.fillRect(x(0), y - 0.5, x(n) - x(0), 1);
 
-      // One bar per day: dim ahead of the playhead, amber for the current day, blue behind
-      for (let i = 0; i < n; i++) {
-        const bh = (data.daily[i] / max) * (h - 8);
-        const x = i * bw + gap / 2;
-        const cur = T >= i && T < i + 1;
-        ctx.fillStyle = cur ? "rgba(255,176,0,0.95)" : (i + 1 <= T ? "rgba(79,195,247,0.55)" : "rgba(138,151,168,0.14)");
-        ctx.fillRect(x, h - 1 - bh, Math.max(bw - gap, 1), bh);
+      // One small tick per day: brighter on busy days once the playhead has passed (a whisper of activity)
+      for (let i = 0; i <= n; i++) {
+        const passed = i <= T;
+        const a = passed ? 0.25 + 0.6 * ((data.daily[Math.min(i, n - 1)] || 0) / max) : 0.14;
+        ctx.fillStyle = passed ? rgba(RAMP.rest, a) : `rgba(232,238,245,${a})`;
+        ctx.fillRect(Math.round(x(i)) - 0.5, y + 3, 1, 4);
       }
 
-      // Cumulative curve up to the playhead (thin, bright)
-      const total = data.tSorted.length;
-      ctx.beginPath();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,243,207,0.85)";
-      let cum = 0;
-      ctx.moveTo(0, h - 1);
-      for (let i = 0; i < n && i <= T; i++) {
-        const frac = Math.min(T - i, 1);                                 // partial for the current day
-        const add = frac >= 1 ? data.daily[i] : (countUpTo(data.tSorted, T) - cum);
-        cum += add;
-        ctx.lineTo(Math.min((i + frac) * bw, headX), h - 1 - (cum / total) * (h - 8));
+      // Month marks: taller tick + label (first day of the project and every 1st of the month)
+      ctx.font = `600 ${Math.max(9, Math.min(11, h * 0.2))}px Barlow, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      for (let i = 0; i <= n; i++) {
+        const d = new Date((data.firstDay + i) * 864e5);
+        if (i !== 0 && d.getUTCDate() !== 1) continue;
+        const px = Math.round(x(i)) - 0.5;
+        ctx.fillStyle = "rgba(232,238,245,0.45)"; ctx.fillRect(px, y - 5, 1, 13);
+        const label = MON[d.getUTCMonth()].toUpperCase() + (i === 0 || d.getUTCMonth() === 0 ? ` ${d.getUTCFullYear()}` : "");
+        ctx.fillStyle = "rgba(232,238,245,0.55)"; ctx.fillText(label, px + 4, y + 9);
       }
-      ctx.stroke();
 
-      // Playhead
-      ctx.fillStyle = "rgba(255,243,207,0.9)"; ctx.fillRect(headX - 0.5, 0, 1, h);
+      // Elapsed line in node green, with a soft glow
+      ctx.save();
+      ctx.shadowColor = rgba(RAMP.rest, 0.9); ctx.shadowBlur = 8;
+      ctx.fillStyle = rgba(RAMP.rest, 0.95); ctx.fillRect(x(0), y - 1, headX - x(0), 2);
+      ctx.restore();
+
+      // Comet tail: last stretch fades from green into the white-hot head
+      const tail = Math.min(70, headX - x(0));
+      if (tail > 1) {
+        const g = ctx.createLinearGradient(headX - tail, 0, headX, 0);
+        g.addColorStop(0, rgba(RAMP.warm, 0)); g.addColorStop(1, rgba(RAMP.hot, 0.95));
+        ctx.fillStyle = g; ctx.fillRect(headX - tail, y - 1.5, tail, 3);
+      }
+
+      // Playhead: breathing halo ring + white-hot core
+      const pulse = 0.5 + 0.5 * Math.sin(now / 320);
+      ctx.beginPath(); ctx.arc(headX, y, 7 + 3 * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(RAMP.rest, 0.25 + 0.35 * (1 - pulse)); ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.save();
+      ctx.shadowColor = rgba(RAMP.warm, 1); ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(headX, y, 4.2, 0, Math.PI * 2); ctx.fillStyle = rgba(RAMP.hot, 1); ctx.fill();
+      ctx.restore();
+    }
+
+    // Busiest working areas of each day (2.5 km bins, up to 3) - where the map "pings" when a day starts
+    function dayClusters(rows, firstDay, nDays) {
+      const CELL = 2500, out = Array.from({ length: nDays }, () => new Map());
+      for (const r of rows) {
+        const key = `${Math.floor(r.x / CELL)}_${Math.floor(r.y / CELL)}`;
+        const m = out[r.day - firstDay];
+        const c = m.get(key) || { sx: 0, sy: 0, n: 0 };
+        c.sx += r.x; c.sy += r.y; c.n++; m.set(key, c);
+      }
+      return out.map((m) => {
+        const cells = [...m.values()].sort((a, b) => b.n - a.n);
+        const top = cells.length ? cells[0].n : 0;
+        return cells.filter((c) => c.n >= top * 0.25).slice(0, 3).map((c) => ({ x: c.sx / c.n, y: c.sy / c.n, n: c.n }));
+      });
     }
 
     // =====================================================================
@@ -614,7 +672,7 @@
     // =====================================================================
     async function main() {
       overlay("Loading map…", { spin: true });
-      const [Map, MapView, FeatureLayer, TileLayer, Basemap, Graphic, OAuthInfo, esriId] = await loadModules();
+      const [Map, MapView, FeatureLayer, TileLayer, Basemap, Graphic, GraphicsLayer, OAuthInfo, esriId] = await loadModules();
 
       // Map with a dark background so nothing flashes white while tiles load
       const map = new Map({ basemap: buildBasemap(TileLayer, Basemap) });
@@ -680,7 +738,7 @@
       }
 
       // ---- Data (re)loading --------------------------------------------------
-      let data, mainLayer, ghostLayer, lastFetch = 0, lastT = NaN;
+      let data, mainLayer, ghostLayer, rippleLayer, lastFetch = 0, lastT = NaN;
       // Faint full footprint drawn under the animation
       const ghostRenderer = () => ({ type: "simple", symbol: { type: "simple-marker", size: Math.max(1, SIZE.node * 0.6), color: [180, 200, 225, 0.08], outline: null } });
       async function loadData() {
@@ -688,6 +746,7 @@
         const raw = CFG.demo ? demoFeatures() : await fetchFeatures(FeatureLayer);
         if (!raw.rows.length) { overlay("No deployments recorded yet. This view will fill in as the crews deploy."); return false; }
         data = prepare(raw);
+        data.clusters = dayClusters(data.rows, data.firstDay, data.nDays);   // where each day "pings"
         lastFetch = Date.now();
 
         // Replace layers with fresh ones built from the new data
@@ -696,9 +755,12 @@
         mainLayer = makeLayer(FeatureLayer, Graphic, data, {
           renderer: rendererAt(-1),
           // Glow on bright pixels only (threshold keeps settled blue nodes crisp)
-          effect: "bloom(1.6, 0.7px, 0.42)"
+          effect: "bloom(1.5, 0.7px, 0.8)"
         });
         map.addMany([ghostLayer, mainLayer].filter(Boolean));
+        // Ripples always draw on top of the nodes
+        if (!rippleLayer) rippleLayer = new GraphicsLayer({ effect: "bloom(0.8, 0.4px, 0.2)", listMode: "hide" });
+        map.remove(rippleLayer); map.add(rippleLayer);
 
         // Frame the survey between the HUD blocks (see fitView)
         let [xmin, xmax, ymin, ymax] = [Infinity, -Infinity, Infinity, -Infinity];
@@ -707,10 +769,8 @@
         await view.when();
         await fitView();
 
-        // Timeline edge labels
+        // First / last day (used by the debug panel)
         const d0 = new Date(data.firstDay * 864e5), d1 = new Date(data.lastDay * 864e5);
-        $("tl-start").textContent = shortFmt.format(d0).toUpperCase();
-        $("tl-end").textContent = shortFmt.format(d1).toUpperCase();
 
         if (CFG.debug) {
           $("debug").style.display = "block";
@@ -729,10 +789,40 @@
       const playSeconds = () => Math.min(CFG.maxDuration, Math.max(CFG.minDuration, data.nDays * CFG.secondsPerDay));
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+      // ---- Sonar ripples: when a new day begins, its busiest working areas "ping" ----
+      const RIPPLE_MS = 1600;                    // life of one ripple in real time
+      let ripples = [], lastDayIdx = -1;
+      function spawnRipples(dayIdx, now) {
+        const day = data.clusters?.[dayIdx] || [];
+        const big = Math.max(...day.map((c) => c.n), 1);
+        for (const c of day) {
+          // Two rings per area, the second slightly delayed; busier areas ping wider
+          for (const delay of [0, 260]) ripples.push({ x: c.x, y: c.y, t0: now + delay, scale: 0.6 + 0.4 * (c.n / big), g: null });
+        }
+      }
+      function updateRipples(now) {
+        if (!rippleLayer) return;
+        ripples = ripples.filter((r) => {
+          const a = (now - r.t0) / RIPPLE_MS;                       // 0 -> 1 over the ripple's life
+          if (a >= 1) { if (r.g) rippleLayer.remove(r.g); return false; }
+          if (a < 0) return true;                                    // delayed ring, not started yet
+          const ease = 1 - Math.pow(1 - a, 3);                       // fast out, slow settle
+          const symbol = { type: "simple-marker", style: "circle", size: 6 + ease * 52 * r.scale,
+            color: [0, 0, 0, 0], outline: { color: [...RAMP.rest.slice(0, 3), 0.75 * (1 - a)], width: 1.1 } };
+          if (!r.g) { r.g = new Graphic({ geometry: { type: "point", x: r.x, y: r.y, spatialReference: { wkid: 102100 } }, symbol }); rippleLayer.add(r.g); }
+          else r.g.symbol = symbol;
+          return true;
+        });
+      }
+      function clearRipples() { ripples = []; rippleLayer?.removeAll(); }
+
       function setT(T) {
         // Renderer update only when T actually moved (keeps GPU work minimal)
         if (T !== lastT) { mainLayer.renderer = rendererAt(T); lastT = T; }
         const dayIdx = Math.min(Math.floor(T), data.nDays - 1);
+        // A new day has started -> ping its working areas (only while playing forward)
+        if (T < 0) lastDayIdx = -1;
+        else if (dayIdx > lastDayIdx) { if (phase === "play" && data.daily[dayIdx]) spawnRipples(dayIdx, performance.now()); lastDayIdx = dayIdx; }
         const shown = Math.max(dayIdx, 0);
         $("date").textContent = dateFmt.format(new Date((data.firstDay + shown) * 864e5));
         $("dayof").textContent = `Day ${shown + 1} of ${data.nDays}`;
@@ -751,6 +841,9 @@
 
         if (reduced) { setT(data.nDays); return; } // static final state for reduced-motion users
 
+        updateRipples(now);                                   // advance any ripples on the map
+        if (!Number.isNaN(lastT)) drawTimeline(data, Math.max(lastT, 0), now);   // keeps the playhead breathing during holds
+
         if (phase === "holdStart") {
           setT(-0.01);
           if (el >= CFG.holdStart) { phase = "play"; phaseStart = now; }
@@ -766,24 +859,37 @@
               try { await loadData(); status(`Live · updated ${timeFmt.format(new Date())}`); }
               catch (e) { console.error(e); status("Live · refresh failed, retrying", "error"); lastFetch = Date.now() - (CFG.refreshMinutes - 2) * 60e3; }
             }
-            phase = "holdStart"; phaseStart = performance.now(); lastT = NaN;
+            phase = "holdStart"; phaseStart = performance.now(); lastT = NaN; clearRipples();
           }
         }
       }
 
-      // Click the timeline (or press space) to pause / resume
+      // Play / pause button (or Space)
       const togglePause = () => {
         paused = !paused;
-        if (paused) { pauseAt = performance.now(); status("Paused · click to resume", "paused"); }
-        else { phaseStart += performance.now() - pauseAt; status(`Live · updated ${timeFmt.format(new Date(lastFetch))}`); }
+        $("tl-play").classList.toggle("paused", paused);
+        if (paused) { pauseAt = performance.now(); status("Paused", "paused"); }
+        else { phaseStart += performance.now() - pauseAt; status(CFG.demo ? "Demo data" : `Live · updated ${timeFmt.format(new Date(lastFetch))}`); }
       };
-      $("hud-timeline").addEventListener("click", togglePause);
+      $("tl-play").addEventListener("click", togglePause);
+
+      // Click the track to jump to that day and keep playing from there
+      $("timeline").addEventListener("click", (e) => {
+        if (!data) return;
+        const rect = $("timeline").getBoundingClientRect();
+        const f = Math.min(Math.max((e.clientX - rect.left - SCRUB_PAD) / (rect.width - 2 * SCRUB_PAD), 0), 1);
+        const now = performance.now();
+        phase = "play"; phaseStart = now - f * playSeconds() * 1000;
+        clearRipples(); lastDayIdx = Math.floor(f * data.nDays);
+        if (paused) { paused = false; $("tl-play").classList.remove("paused"); status(CFG.demo ? "Demo data" : `Live · updated ${timeFmt.format(new Date(lastFetch))}`); }
+        setT(f * data.nDays);
+      });
       addEventListener("keydown", (e) => { if (e.code === "Space") { e.preventDefault(); togglePause(); } });
       // Re-frame and redraw when the dashboard tile is resized
       let resizeTimer;
       addEventListener("resize", () => {
         if (!data) return;
-        drawTimeline(data, Math.max(lastT || 0, 0));
+        drawTimeline(data, Math.max(lastT || 0, 0));   // redraw the scrubber at the new width
         clearTimeout(resizeTimer); resizeTimer = setTimeout(fitView, 250);
       });
 

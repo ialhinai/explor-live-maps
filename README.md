@@ -1,6 +1,6 @@
 # Live deployment animation (ArcGIS Online dashboard embed)
 
-A single web page that reads a hosted node-deployment layer **live**, and plays it back day by day: each new node flashes white-hot, cools through amber and cyan, and settles to receiver blue, while a date counter, running totals and a daily-bar timeline track progress. It loops forever, and re-queries the layer between loops, so it grows by one day every day with no one touching it.
+A single web page that reads a hosted node-deployment layer **live**, and plays it back day by day: each new node flashes white-hot, cools through yellow and lime, and settles to the dashboard node green (#55FF00), while a date counter, running totals and a play/pause time scrubber track progress, and each new day's working areas "ping" on the map with sonar ripples. It loops forever, and re-queries the layer between loops, so it grows by one day every day with no one touching it.
 
 - `index.html`: the animation (ArcGIS Maps SDK for JavaScript 5.1, no build step)
 - `oauth-callback.html`: sign-in popup helper (only used if the layer stays private)
@@ -23,10 +23,11 @@ Your daily deployment notebook appends to the hosted layer → the next loop sho
 | Choice | Why |
 |---|---|
 | Fixed frame, no zooming | The survey is the stage; change is shown by time, not camera moves |
-| White → amber → cyan → blue "cooling" ramp | Makes the *new* stand out (avoids change blindness) while the history stays readable; blue matches the RCV convention |
+| White → yellow → lime → light green "cooling" ramp | Makes the *new* stand out (avoids change blindness) while the history stays readable; light green matches the nodes on the dashboard map |
 | Bloom on bright pixels only | Firefly glow on fresh nodes, crisp settled grid |
 | Faint ghost of the full footprint | Viewer sees where the spread is heading |
-| Daily bars + cumulative curve + playhead | A temporal legend: the eye always knows *when* it is |
+| Time scrubber with month marks + glowing playhead | A temporal legend (Flourish-style): the eye always knows *when* it is; click to jump to any day |
+| Sonar ripples where each day's crews start | Draws the eye to where work moved that day, without another chart |
 | Hold at start and end | Time to read the final state before the loop restarts |
 | Day boundary from `local_time` | Bolivia wall-clock days, no UTC-midnight drift |
 
@@ -66,7 +67,7 @@ Edit the dashboard → add element → **Embedded content** → URL:
 https://<account>.github.io/explor-live-maps/?project=bolivia3d
 ```
 
-(Add `&appId=<CLIENT_ID>` for Option B.) Give the element a decent height; the HUD trims itself on small tiles (below 340 px tall the timeline hides).
+(Add `&appId=<CLIENT_ID>` for Option B.) Give the element a decent height; the HUD trims itself on small tiles (below 340 px tall the scrubber hides).
 
 ### Step 4. Check it once
 
@@ -85,6 +86,7 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
+| `nodeColor` | `55FF00` | Settled node colour as hex, e.g. `7ED957`, to match the dashboard map exactly |
 | `basemap` | `hillshade` | `hillshade`, `imagery`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
@@ -100,7 +102,7 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `demo` | `false` | Synthetic data, no sign-in |
 | `debug` | `false` | Diagnostics panel |
 
-Click the timeline (or press Space) to pause and resume.
+Use the round button (or Space) to pause and resume; click anywhere on the scrubber to jump to that day.
 
 ## Adding another project
 
