@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Signing in…</title>
+  <script>
+    // OAuth popup callback for the ArcGIS Maps SDK for JavaScript.
+    // ArcGIS Online redirects the sign-in popup here; this page hands the
+    // result back to the animation page (window.opener) and closes itself.
+    function loadHandler() {
+      if (window.opener) {
+        if (location.hash) {
+          // Implicit flow: token arrives in the URL hash
+          window.opener.dispatchEvent(new CustomEvent("arcgis:auth:hash", { detail: location.hash }));
+          window.close();
+        } else if (location.search) {
+          // Authorization-code (PKCE) flow: code arrives in the query string
+          window.opener.dispatchEvent(new CustomEvent("arcgis:auth:location:search", { detail: location.search }));
+          window.close();
+        }
+      } else {
+        // Opened directly (no popup parent) - nothing to hand back
+        window.close();
+      }
+    }
+  </script>
+</head>
+<body onload="loadHandler();" style="background:#070a0f;color:#8a97a8;font:14px system-ui;display:grid;place-items:center;height:100vh;margin:0">
+  Signing in…
+</body>
+</html>

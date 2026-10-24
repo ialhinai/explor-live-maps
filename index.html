@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live Deployment Animation</title>
+
+  <!-- Fonts: Barlow for UI text, Barlow Condensed for the big numbers (falls back to system fonts if blocked) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ArcGIS Maps SDK for JavaScript 5.1 (single module-based CDN entry; defines $arcgis.import) -->
+  <link rel="stylesheet" href="https://js.arcgis.com/5.1/esri/themes/dark/main.css" />
+  <script type="module" src="https://js.arcgis.com/5.1/"></script>
+
+  <style>
+    /* ---------- Design tokens ---------- */
+    :root {
+      --bg: #070a0f;                 /* page / map background while tiles load */
+      --ink: #e8eef5;                /* primary text */
+      --ink-dim: #8a97a8;            /* secondary text */
+      --ink-faint: #4a5566;          /* tertiary text, rules */
+      --accent-hot: #fff3cf;         /* newborn node (white-hot) */
+      --accent-warm: #ffb000;        /* node a few hours old (amber) */
+      --accent-cool: #4fc3f7;        /* node a day old (cyan) */
+      --accent-rest: #2f74c0;        /* settled node (receiver blue) */
+      --panel: rgba(7, 10, 15, 0.62);/* HUD glass panels */
+      --gutter: clamp(12px, 2.2vw, 28px);
+    }
+
+    /* ---------- Page ---------- */
+    html, body {
+      margin: 0; height: 100%; width: 100%;
+      background: var(--bg); color: var(--ink);
+      font-family: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden;                         /* never scroll inside the dashboard tile */
+      -webkit-font-smoothing: antialiased;
+    }
+    #view { position: absolute; inset: 0; }
+    /* Soft vignette to pull the eye to the centre (Milos/John Nelson style framing) */
+    #vignette {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+    }
+    /* Dark, low-key attribution so it is present but quiet */
+    #attribution {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 2px var(--gutter);
+      font-size: 9px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      pointer-events: none;
+    }
+    .esri-view-surface--inset-outline:focus::after { outline: none !important; }
+
+    /* ---------- HUD: title + date (top-left) ---------- */
+    #hud-title {
+      position: absolute; top: var(--gutter); left: var(--gutter);
+      pointer-events: none; max-width: 60%;
+    }
+    .eyebrow {
+      font-size: clamp(10px, 1.05vw, 12px); letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--ink-dim); font-weight: 600;
+    }
+    .title {
+      font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
+      font-size: clamp(18px, 2.6vw, 34px); line-height: 1.05; margin-top: 4px;
+    }
+    #date {
+      font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 700;
+      font-size: clamp(28px, 5.2vw, 68px); line-height: 1; margin-top: clamp(8px, 1.6vh, 18px);
+      font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+      text-shadow: 0 0 24px rgba(255, 176, 0, 0.18);
+    }
+    #dayof { font-size: clamp(11px, 1.2vw, 14px); color: var(--ink-dim); margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+    /* ---------- HUD: counters (top-right) ---------- */
+    #hud-stats {
+      position: absolute; top: var(--gutter); right: var(--gutter);
+      display: flex; flex-direction: column; align-items: flex-end; gap: clamp(6px, 1.2vh, 14px);
+      pointer-events: none; text-align: right;
+    }
+    .stat .num {
+      font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
+      font-size: clamp(22px, 3.6vw, 48px); line-height: 1; font-variant-numeric: tabular-nums;
+    }
+    .stat .lbl { font-size: clamp(9px, 0.95vw, 11px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
+    .stat.small .num { font-size: clamp(16px, 2.2vw, 28px); color: var(--accent-warm); }
+    .stat.tiny .num { font-size: clamp(14px, 1.7vw, 22px); color: var(--ink-dim); }
+
+    /* ---------- HUD: timeline (bottom) ---------- */
+    #hud-timeline {
+      position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 14px);
+      height: clamp(54px, 13vh, 110px); pointer-events: auto; cursor: pointer;
+    }
+    #timeline { width: 100%; height: 100%; display: block; }
+    #tl-labels {
+      position: absolute; left: 0; right: 0; bottom: -16px; display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--ink-faint); letter-spacing: 0.08em; font-variant-numeric: tabular-nums; pointer-events: none;
+    }
+
+    /* ---------- Status chip (bottom-right, above timeline) ---------- */
+    #status {
+      position: absolute; right: var(--gutter); bottom: calc(var(--gutter) + clamp(54px, 13vh, 110px) + 24px);
+      font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim);
+      display: flex; align-items: center; gap: 6px; pointer-events: none;
+    }
+    #status .dot { width: 6px; height: 6px; border-radius: 50%; background: #3ddc97; box-shadow: 0 0 8px #3ddc97; }
+    #status.paused .dot { background: var(--accent-warm); box-shadow: 0 0 8px var(--accent-warm); }
+    #status.error .dot { background: #ff5d5d; box-shadow: 0 0 8px #ff5d5d; }
+
+    /* ---------- Overlays: loading / sign-in / message ---------- */
+    #overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(7,10,15,0.72); backdrop-filter: blur(2px); z-index: 10; text-align: center; padding: 24px;
+    }
+    #overlay.hidden { display: none; }
+    #overlay .box { max-width: 420px; }
+    #overlay .msg { font-size: 14px; color: var(--ink-dim); line-height: 1.5; margin-top: 10px; }
+    #overlay button {
+      margin-top: 16px; font: 600 13px "Barlow", sans-serif; letter-spacing: 0.08em; text-transform: uppercase;
+      color: #0b0f14; background: var(--accent-warm); border: 0; border-radius: 4px; padding: 10px 18px; cursor: pointer;
+    }
+    #overlay button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .spinner {
+      width: 26px; height: 26px; margin: 0 auto; border-radius: 50%;
+      border: 2px solid var(--ink-faint); border-top-color: var(--accent-warm); animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Debug panel (?debug=1) ---------- */
+    #debug {
+      position: absolute; left: var(--gutter); bottom: calc(var(--gutter) + clamp(54px, 13vh, 110px) + 24px);
+      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-dim);
+      background: var(--panel); padding: 8px 10px; border-radius: 4px; white-space: pre; display: none; z-index: 5;
+    }
+
+    /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
+    @media (max-height: 340px) {
+      #hud-timeline, #status, .stat.tiny { display: none; }
+      #date { margin-top: 4px; }
+    }
+    @media (max-width: 520px) {
+      .stat.tiny { display: none; }
+      #hud-title { max-width: 55%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Map container -->
+  <div id="view"></div>
+  <div id="vignette"></div>
+
+  <!-- Title + current date -->
+  <div id="hud-title">
+    <div class="eyebrow" id="eyebrow">Explor</div>
+    <div class="title" id="title">Node deployment</div>
+    <div id="date">&nbsp;</div>
+    <div id="dayof">&nbsp;</div>
+  </div>
+
+  <!-- Running counters -->
+  <div id="hud-stats">
+    <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
+    <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
+    <div class="stat tiny" id="stat-positions"><div class="num" id="n-pos">0</div><div class="lbl">Unique positions</div></div>
+  </div>
+
+  <!-- Live status -->
+  <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
+
+  <!-- Daily bars + cumulative curve + playhead -->
+  <div id="hud-timeline" title="Click to pause / resume">
+    <canvas id="timeline"></canvas>
+    <div id="tl-labels"><span id="tl-start"></span><span id="tl-end"></span></div>
+  </div>
+
+  <div id="debug"></div>
+  <div id="attribution">Esri</div>
+
+  <!-- Loading / sign-in / error overlay -->
+  <div id="overlay">
+    <div class="box">
+      <div class="spinner" id="ov-spin"></div>
+      <div class="msg" id="ov-msg">Loading deployment data…</div>
+      <button id="ov-btn" hidden>Sign in to ArcGIS Online</button>
+    </div>
+  </div>
+
+  <script type="module">
+    // =====================================================================
+    // 1. CONFIGURATION
+    //    Each project is a preset. Pick one with ?project=<key> (default below).
+    //    Any value can also be overridden from the URL, e.g. ?secondsPerDay=0.3
+    // =====================================================================
+    const PRESETS = {
+      // Bolivia 3D - accepted node deployments (hosted layer: Bolivia_3D_Deployed_Nodes_Accepted)
+      bolivia3d: {
+        layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
+        eyebrow: "Explor  ·  Bolivia 3D",          // small caps line above the title
+        title: "Node deployment",                   // main title
+        dateField: "local_time",                    // timestamp used to sequence the animation
+        dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
+        timeZone: "America/La_Paz",                 // used only when the chosen field is a true UTC instant
+        uniqueField: "point_id",                    // counts unique positions (re-deployments counted once)
+        basemap: "hillshade"                        // hillshade | imagery | dark
+      }
+    };
+    const DEFAULT_PROJECT = "bolivia3d";
+
+    // Settings shared by every project (each can be overridden from the URL)
+    const DEFAULTS = {
+      portalUrl: "https://www.arcgis.com",  // ArcGIS Online (or your Enterprise portal)
+      appId: "",                            // OAuth client ID - only needed if the layer is NOT public
+      secondsPerDay: 0.45,                  // playback speed: seconds of animation per project day
+      minDuration: 12,                      // never play faster than this many seconds in total
+      maxDuration: 45,                      // never play slower than this many seconds in total
+      holdStart: 1.5,                       // seconds to hold the empty map before playing
+      holdEnd: 6,                           // seconds to hold the finished map before looping
+      refreshMinutes: 20,                   // re-query the layer at loop end if data is older than this
+      reloadHours: 12,                      // full page reload (picks up code changes on wall screens)
+      nodeSize: 3.2,                        // largest settled node size in px (auto-scaled down for dense views)
+      flashSize: 11,                        // largest newborn node size in px
+      autoSize: true,                       // scale node sizes to the node density on screen
+      ghost: true,                          // faint full footprint underneath ("where this is heading")
+      labels: true,                         // faint reference labels (towns, roads) over the basemap
+      interactive: false,                   // allow pan/zoom (off so the dashboard page scrolls normally)
+      rotation: 0,                          // map rotation in degrees (e.g. to square up the survey grid)
+      padding: 0.06,                        // extra margin around the data extent (fraction)
+      tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
+      demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
+      debug: false                          // ?debug=1 -> diagnostics panel
+    };
+
+    // Merge: defaults <- preset <- URL parameters (URL wins)
+    const params = new URLSearchParams(location.search);
+    const preset = PRESETS[params.get("project") || DEFAULT_PROJECT] || PRESETS[DEFAULT_PROJECT];
+    const CFG = { ...DEFAULTS, ...preset };
+    for (const [k, v] of params) {
+      // Only accept known keys, and cast to the type of the default
+      if (!(k in CFG)) continue;
+      const t = typeof CFG[k];
+      CFG[k] = t === "number" ? Number(v) : t === "boolean" ? /^(1|true|yes)$/i.test(v) : v;
+    }
+
+    // Colour ramp for a node's "age" (days since it was deployed, relative to the playhead)
+    const RAMP = {
+      hot:  [255, 243, 207, 1.0],   // 0 h      white-hot flash
+      warm: [255, 176,   0, 1.0],   // ~6 h     amber
+      cool: [ 79, 195, 247, 0.95],  // ~1 day   cyan
+      rest: [ 47, 116, 192, 0.85]   // 3+ days  settled receiver blue (Explor RCV convention)
+    };
+
+    // =====================================================================
+    // 2. SMALL DOM HELPERS
+    // =====================================================================
+    const $ = (id) => document.getElementById(id);
+    const nf = new Intl.NumberFormat("en-US");
+    // Dates are built by hand ("23 Sep 2026") so every browser renders them identically
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const dateFmt = { format: (d) => `${pad2(d.getUTCDate())} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
+    const shortFmt = { format: (d) => `${pad2(d.getUTCDate())} ${MON[d.getUTCMonth()]}` };
+    const timeFmt = { format: (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}` };
+
+    // Show the overlay with a message; spinner and button are optional
+    function overlay(msg, { spin = false, button = null } = {}) {
+      $("overlay").classList.remove("hidden");
+      $("ov-msg").textContent = msg;
+      $("ov-spin").style.display = spin ? "block" : "none";
+      const btn = $("ov-btn");
+      btn.hidden = !button;
+      if (button) { btn.textContent = button.label; btn.onclick = button.onClick; }
+    }
+    const hideOverlay = () => $("overlay").classList.add("hidden");
+
+    // Status chip text + colour state
+    function status(text, state = "live") {
+      $("status-text").textContent = text;
+      $("status").className = state === "live" ? "" : state;
+    }
+
+    // Static text from config
+    $("eyebrow").textContent = CFG.eyebrow;
+    $("title").textContent = CFG.title;
+    document.title = `${CFG.title} · ${CFG.eyebrow.replace(/\s*·\s*/g, " ")}`;
+
+    // =====================================================================
+    // 3. LOAD SDK MODULES
+    //    $arcgis.import is the 5.x CDN loader. A test harness may pre-inject
+    //    modules via window.__ARCGIS_TEST_MODULES (used for offline testing).
+    // =====================================================================
+    const MODULES = [
+      "@arcgis/core/Map.js",
+      "@arcgis/core/views/MapView.js",
+      "@arcgis/core/layers/FeatureLayer.js",
+      "@arcgis/core/layers/TileLayer.js",
+      "@arcgis/core/Basemap.js",
+      "@arcgis/core/Graphic.js",
+      "@arcgis/core/identity/OAuthInfo.js",
+      "@arcgis/core/identity/IdentityManager.js"
+    ];
+    async function loadModules() {
+      if (window.__ARCGIS_TEST_MODULES) return MODULES.map((m) => window.__ARCGIS_TEST_MODULES[m]);
+      // Wait for the CDN script to define $arcgis (module scripts can finish in any order)
+      for (let i = 0; i < 200 && typeof window.$arcgis === "undefined"; i++) await new Promise((r) => setTimeout(r, 50));
+      if (typeof window.$arcgis === "undefined") throw new Error("ArcGIS Maps SDK did not load (js.arcgis.com unreachable?)");
+      return window.$arcgis.import(MODULES);
+    }
+
+    // =====================================================================
+    // 4. AUTHENTICATION
+    //    - Public layer (or public view): nothing to do.
+    //    - Secured layer + appId: OAuth popup, credentials remembered in
+    //      localStorage so viewers sign in once per token lifetime.
+    //    - Secured layer, no appId: the SDK's built-in sign-in dialog appears.
+    // =====================================================================
+    const CRED_KEY = "explor_live_anim_credentials";
+
+    async function setupAuth(OAuthInfo, esriId) {
+      if (CFG.demo || !CFG.appId) return;
+
+      // Restore credentials saved by an earlier visit (silently ignored if storage is blocked)
+      try {
+        const saved = localStorage.getItem(CRED_KEY);
+        if (saved) esriId.initialize(JSON.parse(saved));
+      } catch (e) { /* storage unavailable in this context - fine */ }
+
+      // Register the OAuth app (popup flow, because ArcGIS Online refuses to load inside an iframe)
+      const info = new OAuthInfo({
+        appId: CFG.appId,
+        portalUrl: CFG.portalUrl,
+        popup: true,
+        popupCallbackUrl: new URL("oauth-callback.html", location.href).href,
+        flowType: "auto",
+        expiration: 20160                  // request a 2-week token (minutes)
+      });
+      esriId.registerOAuthInfos([info]);
+
+      // Persist any credential the SDK obtains from now on
+      esriId.on("credential-create", () => {
+        try { localStorage.setItem(CRED_KEY, JSON.stringify(esriId.toJSON())); } catch (e) { /* ignore */ }
+      });
+
+      // Already signed in? Then carry on without showing anything
+      try { await esriId.checkSignInStatus(`${CFG.portalUrl}/sharing`); return; } catch (e) { /* not signed in */ }
+
+      // Otherwise ask for one click - popups must be triggered by a user gesture
+      await new Promise((resolve) => {
+        overlay("This animation reads a secured Explor layer. Sign in once with your ArcGIS Online account.", {
+          button: {
+            label: "Sign in to ArcGIS Online",
+            onClick: async () => {
+              try {
+                await esriId.getCredential(`${CFG.portalUrl}/sharing`, { oAuthPopupConfirmation: false });
+                overlay("Loading deployment data…", { spin: true });
+                resolve();
+              } catch (err) {
+                overlay(`Sign-in was not completed (${err.message || err}). Try again.`, {
+                  button: { label: "Sign in to ArcGIS Online", onClick: $("ov-btn").onclick }
+                });
+              }
+            }
+          }
+        });
+      });
+    }
+
+    // =====================================================================
+    // 5. DATA: query every deployment, convert timestamps to "project time"
+    //    t = days since the first project day (fractional = time of day).
+    //    tzMode decides how a stored date becomes a local calendar day:
+    //      wallclock -> value already holds local clock time (Explor local_time)
+    //      <IANA>    -> value is a UTC instant; convert to that zone
+    //      auto      -> the layer's own dateFieldsTimeZone when it declares one,
+    //                   else local_time-style fields = wallclock, otherwise CFG.timeZone
+    // =====================================================================
+    function makeLocalParts(zone) {
+      // Wall-clock: read the stored instant with UTC getters (no shifting)
+      if (!zone) return (ms) => { const d = new Date(ms); return [d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds()]; };
+      // Real time zone: format the instant in that zone and read the parts back
+      const f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+      return (ms) => {
+        const p = {}; for (const x of f.formatToParts(new Date(ms))) p[x.type] = Number(x.value);
+        return [p.year, p.month - 1, p.day, p.hour * 3600 + p.minute * 60 + p.second];
+      };
+    }
+
+    async function fetchFeatures(FeatureLayer) {
+      // Load the service layer to read its schema and limits
+      const layer = new FeatureLayer({ url: CFG.layerUrl, outFields: [] });
+      await layer.load();
+
+      // Resolve the date field: configured name, then fallbacks, then the first date field on the layer
+      const names = layer.fields.map((f) => f.name);
+      const find = (n) => names.find((x) => x.toLowerCase() === String(n).toLowerCase());
+      let dateField = find(CFG.dateField);
+      for (const fb of CFG.dateFallbacks || []) if (!dateField) dateField = find(fb);
+      if (!dateField) dateField = layer.fields.find((f) => f.type === "date")?.name;
+      if (!dateField) throw new Error("No date field found on the layer - set ?dateField=<name>");
+      const uniqueField = CFG.uniqueField ? find(CFG.uniqueField) : null;
+
+      // Decide how to turn the stored value into a local calendar day
+      let zone = null;
+      if (CFG.tzMode === "wallclock") zone = null;
+      else if (CFG.tzMode && CFG.tzMode !== "auto") zone = CFG.tzMode;
+      // Service declares its own time reference: the SDK returns true instants, so convert into that zone
+      else if (layer.dateFieldsTimeZone && !["UTC", "unknown"].includes(layer.dateFieldsTimeZone)) zone = layer.dateFieldsTimeZone;
+      else zone = /local/i.test(dateField) ? null : CFG.timeZone;
+
+      // Page through the layer (hosted layers cap each request at maxRecordCount)
+      const pageSize = layer.capabilities?.query?.maxRecordCount || 2000;
+      const where = `${dateField} IS NOT NULL`;
+      const total = await layer.queryFeatureCount({ where });
+      const outFields = [layer.objectIdField, dateField, ...(uniqueField ? [uniqueField] : [])];
+      const pages = [];
+      for (let start = 0; start < total; start += pageSize) pages.push(start);
+
+      const rows = [];
+      let done = 0;
+      // Four requests in flight at a time keeps big layers quick without hammering the service
+      const worker = async () => {
+        while (pages.length) {
+          const start = pages.shift();
+          const fs = await layer.queryFeatures({
+            where, outFields, returnGeometry: true, start, num: pageSize,
+            orderByFields: [layer.objectIdField], outSpatialReference: { wkid: 3857 }
+          });
+          for (const g of fs.features) {
+            if (!g.geometry) continue;
+            rows.push({ x: g.geometry.x, y: g.geometry.y, ms: g.attributes[dateField], key: uniqueField ? g.attributes[uniqueField] : null });
+          }
+          done += fs.features.length;
+          overlay(`Loading deployment data… ${nf.format(done)} / ${nf.format(total)}`, { spin: true });
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      return { rows, meta: { dateField, uniqueField, zone: zone || "wallclock", total, source: layer.title || CFG.layerUrl } };
+    }
+
+    // Synthetic 3D receiver grid in the Bolivian Chaco for ?demo=1 (no service, no sign-in)
+    function demoFeatures() {
+      const R = 6378137, toX = (lon) => (lon * Math.PI / 180) * R, toY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI / 180) / 2)) * R;
+      const x0 = toX(-63.62), y0 = toY(-21.32);   // south-west corner of the fake survey
+      const rows = [];
+      const start = Date.UTC(2026, 8, 1);          // 1 Sep 2026, wall-clock
+      let rng = 7; const rand = () => ((rng = (rng * 16807) % 2147483647) / 2147483647);
+      const lines = 46, pts = 220, lineSp = 400, ptSp = 50, angle = 0.35;
+      for (let L = 0; L < lines; L++) {
+        // Crews roll the spread line by line; roughly 1.4 lines a day with a few stand-by days
+        let day = Math.floor(L / 1.4);
+        if (day >= 9) day += 1; if (day >= 21) day += 2;
+        for (let P = 0; P < pts; P++) {
+          if (rand() < 0.03) continue;             // skips (obstacles, access)
+          const u = P * ptSp + (rand() - 0.5) * 6, v = L * lineSp + (rand() - 0.5) * 6;
+          const x = x0 + u * Math.cos(angle) - v * Math.sin(angle), y = y0 + u * Math.sin(angle) + v * Math.cos(angle);
+          const hour = 7 + (P / pts) * 10 + rand() * 0.6; // crews work 07:00-17:30 along the line
+          rows.push({ x, y, ms: start + day * 864e5 + hour * 36e5, key: `R_${L}_${P}` });
+        }
+      }
+      return { rows, meta: { dateField: "demo", uniqueField: "demo", zone: "wallclock", total: rows.length, source: "demo grid" } };
+    }
+
+    // Turn raw rows into the arrays the animation needs
+    function prepare({ rows, meta }) {
+      const parts = makeLocalParts(meta.zone === "wallclock" ? null : meta.zone);
+      const dayNum = (y, m, d) => Math.round(Date.UTC(y, m, d) / 864e5);
+      // Local calendar day + seconds of day for each record
+      for (const r of rows) { const [y, m, d, s] = parts(r.ms); r.day = dayNum(y, m, d); r.sec = s; }
+      rows.sort((a, b) => a.day - b.day || a.sec - b.sec);
+
+      const firstDay = rows[0].day, lastDay = rows[rows.length - 1].day;
+      const nDays = lastDay - firstDay + 1;
+      const daily = new Array(nDays).fill(0);
+      const seen = new Set();
+      const tSorted = new Float64Array(rows.length);   // project time of each record, ascending
+      const uniqCum = new Uint32Array(rows.length);    // unique positions reached by record i
+      let u = 0;
+      rows.forEach((r, i) => {
+        r.t = (r.day - firstDay) + r.sec / 86400;      // fractional project day
+        tSorted[i] = r.t;
+        daily[r.day - firstDay]++;
+        if (r.key != null && !seen.has(r.key)) { seen.add(r.key); u++; }
+        uniqCum[i] = r.key != null ? u : i + 1;
+      });
+      return { rows, firstDay, lastDay, nDays, daily, tSorted, uniqCum, hasUnique: meta.uniqueField != null, meta };
+    }
+
+    // Number of records with t <= T (binary search on the sorted array)
+    function countUpTo(arr, T) {
+      let lo = 0, hi = arr.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid] <= T) lo = mid + 1; else hi = mid; }
+      return lo;
+    }
+
+    // =====================================================================
+    // 6. MAP + LAYERS
+    // =====================================================================
+    function buildBasemap(TileLayer, Basemap) {
+      const svc = "https://services.arcgisonline.com/arcgis/rest/services/";
+      const base = [];
+      if (CFG.basemap === "imagery") {
+        // Desaturated, darkened imagery so the nodes carry the colour
+        base.push(new TileLayer({ url: svc + "World_Imagery/MapServer", effect: "grayscale(0.55) brightness(0.42) contrast(1.15)" }));
+      } else if (CFG.basemap === "dark") {
+        base.push(new TileLayer({ url: svc + "Canvas/World_Dark_Gray_Base/MapServer" }));
+      } else {
+        // Default: dark gray canvas with dark hillshade "screened" on top for subtle terrain
+        base.push(new TileLayer({ url: svc + "Canvas/World_Dark_Gray_Base/MapServer" }));
+        base.push(new TileLayer({ url: svc + "Elevation/World_Hillshade_Dark/MapServer", opacity: 0.55, blendMode: "screen" }));
+      }
+      const reference = CFG.labels ? [new TileLayer({ url: svc + "Canvas/World_Dark_Gray_Reference/MapServer", opacity: 0.55 })] : [];
+      return new Basemap({ baseLayers: base, referenceLayers: reference });
+    }
+
+    // Client-side layer from the prepared rows (only geometry + project time "t")
+    function makeLayer(FeatureLayer, Graphic, data, opts) {
+      const source = data.rows.map((r, i) => new Graphic({
+        geometry: { type: "point", x: r.x, y: r.y, spatialReference: { wkid: 3857 } },
+        attributes: { oid: i + 1, t: r.t }
+      }));
+      return new FeatureLayer({
+        source, objectIdField: "oid", geometryType: "point", spatialReference: { wkid: 3857 },
+        fields: [{ name: "oid", type: "oid" }, { name: "t", type: "double" }],
+        popupEnabled: false, legendEnabled: false, listMode: "hide", ...opts
+      });
+    }
+
+    // Renderer for playhead time T: colour + size keyed on t, so the GPU does the per-node work.
+    // Nodes with t > T sit beyond the last stop -> transparent, size 0 (not yet deployed).
+    // Current marker sizes in px (recomputed by fitView when autoSize is on)
+    const SIZE = { node: DEFAULTS.nodeSize, flash: DEFAULTS.flashSize };
+
+    function rendererAt(T) {
+      const c = (a) => ({ r: a[0], g: a[1], b: a[2], a: a[3] });
+      const eps = 1e-4;
+      return {
+        type: "simple",
+        symbol: { type: "simple-marker", style: "circle", size: SIZE.node, color: [255, 255, 255, 1], outline: null },
+        visualVariables: [
+          { type: "color", field: "t", stops: [
+              { value: T - 3.0,  color: c(RAMP.rest) },   // settled
+              { value: T - 1.0,  color: c(RAMP.cool) },   // yesterday
+              { value: T - 0.25, color: c(RAMP.warm) },   // a few hours ago
+              { value: T,        color: c(RAMP.hot) },    // right now
+              { value: T + eps,  color: { r: 0, g: 0, b: 0, a: 0 } } // future
+          ]},
+          { type: "size", field: "t", stops: [
+              { value: T - 1.5,  size: SIZE.node },
+              { value: T - 0.3,  size: SIZE.node * 1.5 },
+              { value: T,        size: SIZE.flash },
+              { value: T + eps,  size: 0 }
+          ]}
+        ]
+      };
+    }
+
+    // =====================================================================
+    // 7. TIMELINE CANVAS: daily bars (Milos-style), cumulative curve, playhead
+    // =====================================================================
+    function drawTimeline(data, T) {
+      const cv = $("timeline");
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      const ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const n = data.nDays, max = Math.max(...data.daily, 1);
+      const bw = w / n, gap = Math.min(2, bw * 0.25);
+      const headX = Math.min(T / n, 1) * w;
+
+      // Baseline
+      ctx.fillStyle = "rgba(138,151,168,0.25)"; ctx.fillRect(0, h - 1, w, 1);
+
+      // One bar per day: dim ahead of the playhead, amber for the current day, blue behind
+      for (let i = 0; i < n; i++) {
+        const bh = (data.daily[i] / max) * (h - 8);
+        const x = i * bw + gap / 2;
+        const cur = T >= i && T < i + 1;
+        ctx.fillStyle = cur ? "rgba(255,176,0,0.95)" : (i + 1 <= T ? "rgba(79,195,247,0.55)" : "rgba(138,151,168,0.14)");
+        ctx.fillRect(x, h - 1 - bh, Math.max(bw - gap, 1), bh);
+      }
+
+      // Cumulative curve up to the playhead (thin, bright)
+      const total = data.tSorted.length;
+      ctx.beginPath();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,243,207,0.85)";
+      let cum = 0;
+      ctx.moveTo(0, h - 1);
+      for (let i = 0; i < n && i <= T; i++) {
+        const frac = Math.min(T - i, 1);                                 // partial for the current day
+        const add = frac >= 1 ? data.daily[i] : (countUpTo(data.tSorted, T) - cum);
+        cum += add;
+        ctx.lineTo(Math.min((i + frac) * bw, headX), h - 1 - (cum / total) * (h - 8));
+      }
+      ctx.stroke();
+
+      // Playhead
+      ctx.fillStyle = "rgba(255,243,207,0.9)"; ctx.fillRect(headX - 0.5, 0, 1, h);
+    }
+
+    // =====================================================================
+    // 8. MAIN
+    // =====================================================================
+    async function main() {
+      overlay("Loading map…", { spin: true });
+      const [Map, MapView, FeatureLayer, TileLayer, Basemap, Graphic, OAuthInfo, esriId] = await loadModules();
+
+      // Map with a dark background so nothing flashes white while tiles load
+      const map = new Map({ basemap: buildBasemap(TileLayer, Basemap) });
+      const view = new MapView({
+        container: "view", map,
+        background: { color: [7, 10, 15, 1] },
+        rotation: CFG.rotation,
+        constraints: { snapToZoom: false, rotationEnabled: false },
+        ui: { components: [] }   // no SDK widgets (deprecated in 5.x); attribution is drawn by us below
+      });
+
+      // Basemap attribution, read from each tile service's own copyright text (Esri terms of use)
+      map.basemap.load().then(async () => {
+        const layers = [...map.basemap.baseLayers, ...map.basemap.referenceLayers];
+        await Promise.allSettled(layers.map((l) => l.load()));
+        const credits = [...new Set(layers.map((l) => l.copyright).filter(Boolean))];
+        $("attribution").textContent = ["Esri", ...credits].join(" | ");
+      }).catch(() => { $("attribution").textContent = "Basemap: Esri"; });
+      // Freeze navigation unless asked for, so wheel/touch scroll the dashboard instead
+      if (!CFG.interactive) {
+        // Turn off drag/wheel/touch navigation...
+        view.navigation = { browserTouchPanEnabled: false, momentumEnabled: false, actionMap: { dragPrimary: "none", dragSecondary: "none", mouseWheel: "none" } };
+        // ...and swallow the remaining gestures (double-click zoom, keyboard, pinch)
+        for (const ev of ["double-click", "double-tap-drag", "key-down", "drag", "mouse-wheel"]) {
+          try { view.on(ev, (e) => e.stopPropagation()); } catch (e) { /* event not supported in this SDK version */ }
+        }
+      }
+
+      await setupAuth(OAuthInfo, esriId);
+
+      // ---- Framing -----------------------------------------------------------
+      // Fit the data box into the screen area left free by the HUD (title on top,
+      // timeline at the bottom), computing centre and scale directly so the fit
+      // does not depend on basemap zoom levels.
+      let dataBox = null;
+      async function fitView() {
+        if (!dataBox) return;
+        const w = view.width, h = view.height;
+        const top = Math.min($("hud-title").getBoundingClientRect().bottom + 12, h * 0.4);
+        const tl = $("hud-timeline");
+        const bottom = tl.offsetParent ? Math.min(h - tl.getBoundingClientRect().top + 16, h * 0.35) : 24;
+        const availW = Math.max(w - 2 * 24, 50), availH = Math.max(h - top - bottom, 50);
+        const bw = (dataBox.xmax - dataBox.xmin) * (1 + 2 * CFG.padding) || 1000;
+        const bh = (dataBox.ymax - dataBox.ymin) * (1 + 2 * CFG.padding) || 1000;
+        const res = Math.max(bw / availW, bh / availH);           // metres per pixel
+        const cx = (dataBox.xmin + dataBox.xmax) / 2;
+        const cy = (dataBox.ymin + dataBox.ymax) / 2 - ((bottom - top) / 2) * res; // shift so data sits between HUD blocks
+        await view.goTo({ center: { type: "point", x: cx, y: cy, spatialReference: { wkid: 3857 } }, scale: res * 96 * 39.37 }, { animate: false });
+
+        // Marker size from typical node spacing on screen, so a dense grid keeps its line texture
+        SIZE.node = CFG.nodeSize; SIZE.flash = CFG.flashSize;
+        if (CFG.autoSize && data) {
+          const spacing = Math.sqrt(((dataBox.xmax - dataBox.xmin) * (dataBox.ymax - dataBox.ymin)) / data.rows.length); // metres
+          SIZE.node = Math.min(CFG.nodeSize, Math.max(1.3, (spacing / res) * 0.5));
+          SIZE.flash = Math.min(CFG.flashSize, Math.max(5, SIZE.node * 3.4));
+        }
+        if (ghostLayer) ghostLayer.renderer = ghostRenderer();
+        lastT = NaN;                                   // force the animated renderer to rebuild
+      }
+
+      // ---- Data (re)loading --------------------------------------------------
+      let data, mainLayer, ghostLayer, lastFetch = 0, lastT = NaN;
+      // Faint full footprint drawn under the animation
+      const ghostRenderer = () => ({ type: "simple", symbol: { type: "simple-marker", size: Math.max(1, SIZE.node * 0.6), color: [180, 200, 225, 0.08], outline: null } });
+      async function loadData() {
+        overlay("Loading deployment data…", { spin: true });
+        const raw = CFG.demo ? demoFeatures() : await fetchFeatures(FeatureLayer);
+        if (!raw.rows.length) { overlay("No deployments recorded yet. This view will fill in as the crews deploy."); return false; }
+        data = prepare(raw);
+        lastFetch = Date.now();
+
+        // Replace layers with fresh ones built from the new data
+        if (mainLayer) map.removeMany([ghostLayer, mainLayer].filter(Boolean));
+        ghostLayer = CFG.ghost ? makeLayer(FeatureLayer, Graphic, data, { renderer: ghostRenderer() }) : null;
+        mainLayer = makeLayer(FeatureLayer, Graphic, data, {
+          renderer: rendererAt(-1),
+          // Glow on bright pixels only (threshold keeps settled blue nodes crisp)
+          effect: "bloom(1.6, 0.7px, 0.42)"
+        });
+        map.addMany([ghostLayer, mainLayer].filter(Boolean));
+
+        // Frame the survey between the HUD blocks (see fitView)
+        let [xmin, xmax, ymin, ymax] = [Infinity, -Infinity, Infinity, -Infinity];
+        for (const r of data.rows) { if (r.x < xmin) xmin = r.x; if (r.x > xmax) xmax = r.x; if (r.y < ymin) ymin = r.y; if (r.y > ymax) ymax = r.y; }
+        dataBox = { xmin, xmax, ymin, ymax };
+        await view.when();
+        await fitView();
+
+        // Timeline edge labels
+        const d0 = new Date(data.firstDay * 864e5), d1 = new Date(data.lastDay * 864e5);
+        $("tl-start").textContent = shortFmt.format(d0).toUpperCase();
+        $("tl-end").textContent = shortFmt.format(d1).toUpperCase();
+        $("stat-positions").style.display = data.hasUnique ? "" : "none";
+
+        if (CFG.debug) {
+          $("debug").style.display = "block";
+          $("debug").textContent =
+            `source     ${raw.meta.source}\nrecords    ${nf.format(data.rows.length)}\ndate field ${raw.meta.dateField}\n` +
+            `day basis  ${raw.meta.zone}\nunique     ${raw.meta.uniqueField || "-"}\nfirst      ${dateFmt.format(d0)}\n` +
+            `last       ${dateFmt.format(d1)}\ndays       ${data.nDays}\nfetched    ${timeFmt.format(new Date())}`;
+        }
+        hideOverlay();
+        return true;
+      }
+
+      // ---- Animation loop ----------------------------------------------------
+      // Phases: hold empty -> play 0..nDays -> hold full -> (refresh) -> repeat
+      let phaseStart = performance.now(), phase = "holdStart", paused = false, pauseAt = 0, lastDraw = 0;
+      const playSeconds = () => Math.min(CFG.maxDuration, Math.max(CFG.minDuration, data.nDays * CFG.secondsPerDay));
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      function setT(T) {
+        // Renderer update only when T actually moved (keeps GPU work minimal)
+        if (T !== lastT) { mainLayer.renderer = rendererAt(T); lastT = T; }
+        const dayIdx = Math.min(Math.floor(T), data.nDays - 1);
+        const shown = Math.max(dayIdx, 0);
+        $("date").textContent = dateFmt.format(new Date((data.firstDay + shown) * 864e5));
+        $("dayof").textContent = `Day ${shown + 1} of ${data.nDays}`;
+        const k = countUpTo(data.tSorted, T);
+        $("n-total").textContent = nf.format(k);
+        $("n-day").textContent = nf.format(T < 0 ? 0 : k - countUpTo(data.tSorted, dayIdx - 1e-9));
+        $("n-pos").textContent = nf.format(k ? data.uniqCum[k - 1] : 0);
+        drawTimeline(data, Math.max(T, 0));
+      }
+
+      async function tick(now) {
+        requestAnimationFrame(tick);
+        if (!data || paused) return;
+        if (now - lastDraw < 30) return;          // ~33 fps is plenty and kinder to dashboards
+        lastDraw = now;
+        const el = (now - phaseStart) / 1000;
+
+        if (reduced) { setT(data.nDays); return; } // static final state for reduced-motion users
+
+        if (phase === "holdStart") {
+          setT(-0.01);
+          if (el >= CFG.holdStart) { phase = "play"; phaseStart = now; }
+        } else if (phase === "play") {
+          const p = Math.min(el / playSeconds(), 1);
+          setT(p * data.nDays);
+          if (p >= 1) { phase = "holdEnd"; phaseStart = now; }
+        } else if (phase === "holdEnd") {
+          if (el >= CFG.holdEnd) {
+            phase = "busy";
+            // Refresh between loops when the data is stale - this is what keeps it live
+            if (!CFG.demo && Date.now() - lastFetch > CFG.refreshMinutes * 60e3) {
+              try { await loadData(); status(`Live · updated ${timeFmt.format(new Date())}`); }
+              catch (e) { console.error(e); status("Live · refresh failed, retrying", "error"); lastFetch = Date.now() - (CFG.refreshMinutes - 2) * 60e3; }
+            }
+            phase = "holdStart"; phaseStart = performance.now(); lastT = NaN;
+          }
+        }
+      }
+
+      // Click the timeline (or press space) to pause / resume
+      const togglePause = () => {
+        paused = !paused;
+        if (paused) { pauseAt = performance.now(); status("Paused · click to resume", "paused"); }
+        else { phaseStart += performance.now() - pauseAt; status(`Live · updated ${timeFmt.format(new Date(lastFetch))}`); }
+      };
+      $("hud-timeline").addEventListener("click", togglePause);
+      addEventListener("keydown", (e) => { if (e.code === "Space") { e.preventDefault(); togglePause(); } });
+      // Re-frame and redraw when the dashboard tile is resized
+      let resizeTimer;
+      addEventListener("resize", () => {
+        if (!data) return;
+        drawTimeline(data, Math.max(lastT || 0, 0));
+        clearTimeout(resizeTimer); resizeTimer = setTimeout(fitView, 250);
+      });
+
+      // Full reload every few hours so wall screens pick up code changes too
+      if (CFG.reloadHours > 0) setTimeout(() => location.reload(), CFG.reloadHours * 36e5);
+
+      if (await loadData()) {
+        status(CFG.demo ? "Demo data" : `Live · updated ${timeFmt.format(new Date())}`);
+        requestAnimationFrame(tick);
+      }
+      window.__anim = { get data() { return data; }, setT, view };   // handy for debugging from the console
+    }
+
+    main().catch((err) => {
+      console.error(err);
+      const msg = String(err?.message || err);
+      // Friendlier wording for the most likely failure: a secured layer and no access
+      const hint = /token|403|498|499|not authorized|permission/i.test(msg)
+        ? " The layer is secured: share it (or a view of it) publicly, or configure an OAuth appId - see README."
+        : "";
+      overlay(`Could not load the animation: ${msg}.${hint}`);
+      status("Error", "error");
+    });
+  </script>
+</body>
+</html>

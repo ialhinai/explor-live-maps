@@ -1,0 +1,120 @@
+# Live deployment animation (ArcGIS Online dashboard embed)
+
+A single web page that reads a hosted node-deployment layer **live**, and plays it back day by day: each new node flashes white-hot, cools through amber and cyan, and settles to receiver blue, while a date counter, running totals and a daily-bar timeline track progress. It loops forever, and re-queries the layer between loops, so it grows by one day every day with no one touching it.
+
+- `index.html`: the animation (ArcGIS Maps SDK for JavaScript 5.1, no build step)
+- `oauth-callback.html`: sign-in popup helper (only used if the layer stays private)
+
+Preview without any data or sign-in: open `index.html?demo=1` (synthetic grid in the Chaco).
+
+![Demo preview](preview_demo.gif)
+
+---
+
+## How it stays live
+
+1. On load, the page queries every feature from the layer (paged, 4 requests in parallel).
+2. Each record's `local_time` becomes a fractional project day (day number + time of day), so nodes "light up" across the working day the way the crews actually laid them.
+3. After each loop, if the data is older than `refreshMinutes` (20 min), the page re-queries before the next loop.
+4. The page also reloads itself every `reloadHours` (12 h) so wall screens pick up code changes.
+
+Your daily deployment notebook appends to the hosted layer → the next loop shows the new day. Nothing else to schedule.
+
+## Design choices
+
+| Choice | Why |
+|---|---|
+| Fixed frame, no zooming | The survey is the stage; change is shown by time, not camera moves |
+| White → amber → cyan → blue "cooling" ramp | Makes the *new* stand out (avoids change blindness) while the history stays readable; blue matches the RCV convention |
+| Bloom on bright pixels only | Firefly glow on fresh nodes, crisp settled grid |
+| Faint ghost of the full footprint | Viewer sees where the spread is heading |
+| Daily bars + cumulative curve + playhead | A temporal legend: the eye always knows *when* it is |
+| Hold at start and end | Time to read the final state before the loop restarts |
+| Day boundary from `local_time` | Bolivia wall-clock days, no UTC-midnight drift |
+
+---
+
+## Setup
+
+### Step 1. Decide how the page gets the data
+
+The service (`a30934`) is **secured** (it returns "Token Required"), so pick one:
+
+**Option A: Public hosted view (zero clicks for viewers).**
+Create a hosted feature layer *view* of `Bolivia_3D_Deployed_Nodes_Accepted`, limit its fields to `local_time` and `point_id`, share the view publicly, and put the view's URL in `layerUrl` (or pass `?layerUrl=`).
+Node coordinates then become readable by anyone who has the URL, so confirm with the PM/client that this is acceptable before doing it.
+
+**Option B: Keep it private, sign in once (recommended for client data).**
+1. In ArcGIS Online, create an OAuth 2.0 developer credential / application item (Content → New item → Developer credentials).
+2. Add redirect URLs for your hosted page, e.g. `https://<account>.github.io/explor-live-maps/` and `https://<account>.github.io/explor-live-maps/oauth-callback.html`.
+3. Copy the **Client ID** and add it to the embed URL: `&appId=<CLIENT_ID>` (or set `appId` in `DEFAULTS`).
+
+Viewers who can already see the layer click **Sign in to ArcGIS Online** once; the token is kept in the browser for about two weeks.
+
+### Step 2. Host the two files (GitHub Pages)
+
+1. Create a **public** GitHub repository, e.g. `explor-live-maps` (the code holds no secrets; an OAuth Client ID is public by design).
+2. Upload `index.html` and `oauth-callback.html` to the repository root.
+3. Settings → Pages → Deploy from branch → `main` / root.
+4. After a minute the page is live at `https://<account>.github.io/explor-live-maps/`.
+
+Any HTTPS web server works the same way; GitHub Pages is just the free option.
+
+### Step 3. Embed in the dashboard
+
+Edit the dashboard → add element → **Embedded content** → URL:
+
+```
+https://<account>.github.io/explor-live-maps/?project=bolivia3d
+```
+
+(Add `&appId=<CLIENT_ID>` for Option B.) Give the element a decent height; the HUD trims itself on small tiles (below 340 px tall the timeline hides).
+
+### Step 4. Check it once
+
+Open the URL with `&debug=1` in a normal browser tab. The panel shows the date field used, the day basis, record count, and first/last dates. Confirm the first and last dates match what you expect from the field crews.
+
+---
+
+## URL parameters
+
+Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=imagery&secondsPerDay=0.3`.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `project` | `bolivia3d` | Preset to use (see `PRESETS` in `index.html`) |
+| `layerUrl` | preset | FeatureServer layer URL (include `/0`) |
+| `appId` | empty | OAuth Client ID (Option B) |
+| `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
+| `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
+| `uniqueField` | `point_id` | Unique positions counter (re-deployments counted once) |
+| `basemap` | `hillshade` | `hillshade`, `imagery`, or `dark` |
+| `labels` | `true` | Faint reference labels |
+| `ghost` | `true` | Faint footprint of all nodes |
+| `secondsPerDay` | `0.45` | Playback speed |
+| `minDuration` / `maxDuration` | `12` / `45` | Bounds on total loop length in seconds (keeps long projects watchable) |
+| `holdStart` / `holdEnd` | `1.5` / `6` | Pauses before and after each run, in seconds |
+| `refreshMinutes` | `20` | Re-query between loops when data is older than this |
+| `reloadHours` | `12` | Full page reload interval |
+| `nodeSize` / `flashSize` | `3.2` / `11` | Maximum marker sizes in px |
+| `autoSize` | `true` | Shrinks markers on dense / small views so the line texture stays visible |
+| `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
+| `interactive` | `false` | Allow pan/zoom (off so scrolling the dashboard is not captured) |
+| `demo` | `false` | Synthetic data, no sign-in |
+| `debug` | `false` | Diagnostics panel |
+
+Click the timeline (or press Space) to pause and resume.
+
+## Adding another project
+
+Copy the `bolivia3d` block in `PRESETS`, give it a new key, change `layerUrl`, `eyebrow` and `timeZone`, commit, and embed with `?project=<new key>`. One hosted page serves every project.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| "Could not load… token / not authorized" | Layer is private and no `appId` was given, or the signed-in account cannot see the layer |
+| Sign-in popup blocked | Allow popups for the hosting site; the button must be clicked (not automatic) |
+| Dates one day off | Field is a true UTC instant: use `&tzMode=America/La_Paz`, or switch to `&dateField=local_time` |
+| Blank map, no basemap | Network blocks `services.arcgisonline.com`; nodes still animate |
+| Very slow first load | Large layer; consider a view limited to the fields above |
