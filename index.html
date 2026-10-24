@@ -227,7 +227,7 @@
         dateField: "local_time",                    // timestamp used to sequence the animation
         dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
         timeZone: "America/La_Paz",                 // used only when the chosen field is a true UTC instant
-        basemap: "hillshade"                        // hillshade | imagery | dark
+        basemap: "imagery"                          // imagery (satellite) | hillshade | dark
       }
     };
     const DEFAULT_PROJECT = "bolivia3d";
@@ -236,9 +236,9 @@
     const DEFAULTS = {
       portalUrl: "https://www.arcgis.com",  // ArcGIS Online (or your Enterprise portal)
       appId: "h273FIA5tWBYfMOR",            // OAuth client ID ("Bolivia 3D Live Animation" credentials item); public by design
-      secondsPerDay: 0.45,                  // playback speed: seconds of animation per project day
+      secondsPerDay: 0.75,                  // playback speed: seconds of animation per project day
       minDuration: 12,                      // never play faster than this many seconds in total
-      maxDuration: 45,                      // never play slower than this many seconds in total
+      maxDuration: 60,                      // never play slower than this many seconds in total
       holdStart: 1.5,                       // seconds to hold the empty map before playing
       holdEnd: 6,                           // seconds to hold the finished map before looping
       refreshMinutes: 20,                   // re-query the layer at loop end if data is older than this
@@ -538,7 +538,7 @@
       const base = [];
       if (CFG.basemap === "imagery") {
         // Desaturated, darkened imagery so the nodes carry the colour
-        base.push(new TileLayer({ url: svc + "World_Imagery/MapServer", effect: "grayscale(0.55) brightness(0.42) contrast(1.15)" }));
+        base.push(new TileLayer({ url: svc + "World_Imagery/MapServer", effect: "grayscale(0.45) brightness(0.55) contrast(1.1)" }));
       } else if (CFG.basemap === "dark") {
         base.push(new TileLayer({ url: svc + "Canvas/World_Dark_Gray_Base/MapServer" }));
       } else {

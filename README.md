@@ -86,12 +86,12 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
-| `nodeColor` | `55FF00` | Settled node colour as hex, e.g. `7ED957`, to match the dashboard map exactly |
-| `basemap` | `hillshade` | `hillshade`, `imagery`, or `dark` |
+| `nodeColor` | `55FF00` | Theme colour as hex (settled nodes, title, day counter, scrubber line), e.g. `7ED957`, to match the dashboard map |
+| `basemap` | `imagery` | `imagery` (dimmed satellite), `hillshade`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
-| `secondsPerDay` | `0.45` | Playback speed |
-| `minDuration` / `maxDuration` | `12` / `45` | Bounds on total loop length in seconds (keeps long projects watchable) |
+| `secondsPerDay` | `0.75` | Playback speed (higher = slower) |
+| `minDuration` / `maxDuration` | `12` / `60` | Bounds on total loop length in seconds (keeps long projects watchable) |
 | `holdStart` / `holdEnd` | `1.5` / `6` | Pauses before and after each run, in seconds |
 | `refreshMinutes` | `20` | Re-query between loops when data is older than this |
 | `reloadHours` | `12` | Full page reload interval |
@@ -106,7 +106,7 @@ Use the round button (or Space) to pause and resume; click anywhere on the scrub
 
 ## Adding another project
 
-Copy the `bolivia3d` block in `PRESETS`, give it a new key, change `layerUrl`, `eyebrow` and `timeZone`, commit, and embed with `?project=<new key>`. One hosted page serves every project.
+Copy the `bolivia3d` block in `PRESETS`, give it a new key, change `layerUrl`, `eyebrow`, `title` (e.g. "Source acquisition") and `timeZone`, commit, and embed with `?project=<new key>`. Give each dataset its own theme with `&nodeColor=<hex>` (the title, day counter and scrubber follow it). One hosted page serves every project.
 
 ## Troubleshooting
 
