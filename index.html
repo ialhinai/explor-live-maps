@@ -422,7 +422,7 @@
           const start = pages.shift();
           const fs = await layer.queryFeatures({
             where, outFields, returnGeometry: true, start, num: pageSize,
-            orderByFields: [layer.objectIdField], outSpatialReference: { wkid: 3857 }
+            orderByFields: [layer.objectIdField], outSpatialReference: { wkid: 102100 }
           });
           for (const g of fs.features) {
             if (!g.geometry) continue;
@@ -514,11 +514,11 @@
     // Client-side layer from the prepared rows (only geometry + project time "t")
     function makeLayer(FeatureLayer, Graphic, data, opts) {
       const source = data.rows.map((r, i) => new Graphic({
-        geometry: { type: "point", x: r.x, y: r.y, spatialReference: { wkid: 3857 } },
+        geometry: { type: "point", x: r.x, y: r.y, spatialReference: { wkid: 102100 } },
         attributes: { oid: i + 1, t: r.t }
       }));
       return new FeatureLayer({
-        source, objectIdField: "oid", geometryType: "point", spatialReference: { wkid: 3857 },
+        source, objectIdField: "oid", geometryType: "point", spatialReference: { wkid: 102100 },
         fields: [{ name: "oid", type: "oid" }, { name: "t", type: "double" }],
         popupEnabled: false, legendEnabled: false, listMode: "hide", ...opts
       });
@@ -653,7 +653,11 @@
         const res = Math.max(bw / availW, bh / availH);           // metres per pixel
         const cx = (dataBox.xmin + dataBox.xmax) / 2;
         const cy = (dataBox.ymin + dataBox.ymax) / 2 - ((bottom - top) / 2) * res; // shift so data sits between HUD blocks
-        await view.goTo({ center: { type: "point", x: cx, y: cy, spatialReference: { wkid: 3857 } }, scale: res * 96 * 39.37 }, { animate: false });
+        // goTo silently ignores a plain-object point centre in SDK 5.x, so pass [lon, lat] (always honoured)
+        const R = 6378137;
+        const lon = (cx / R) * 180 / Math.PI;
+        const lat = (2 * Math.atan(Math.exp(cy / R)) - Math.PI / 2) * 180 / Math.PI;
+        await view.goTo({ center: [lon, lat], scale: res * 96 * 39.37 }, { animate: false });
 
         // Marker size from typical node spacing on screen, so a dense grid keeps its line texture
         SIZE.node = CFG.nodeSize; SIZE.flash = CFG.flashSize;
