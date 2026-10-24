@@ -351,6 +351,7 @@
     const DEFAULTS = {
       portalUrl: "https://www.arcgis.com",  // ArcGIS Online (or your Enterprise portal)
       appId: "h273FIA5tWBYfMOR",            // OAuth client ID ("Bolivia 3D Live Animation" credentials item); public by design
+      authPopup: "auto",                    // sign-in style: auto = redirect when opened directly, popup when embedded
       secondsPerDay: 1.3,                   // playback speed: seconds of animation per project day
       minDuration: 12,                      // never play faster than this many seconds in total
       maxDuration: 90,                      // never play slower than this many seconds in total
@@ -501,11 +502,16 @@
         if (saved) esriId.initialize(JSON.parse(saved));
       } catch (e) { /* storage unavailable in this context - fine */ }
 
-      // Register the OAuth app (popup flow, because ArcGIS Online refuses to load inside an iframe)
+      // Register the OAuth app.
+      // - Opened directly (phone, browser tab): full-page redirect to the ArcGIS sign-in and back.
+      //   Mobile Safari/Chrome often lose the result of a sign-in popup, so redirect is the reliable path.
+      // - Embedded in a dashboard (iframe): popup, because ArcGIS Online refuses to load inside an iframe.
+      const inFrame = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+      const usePopup = CFG.authPopup === "auto" ? inFrame : /^(1|true|yes)$/i.test(String(CFG.authPopup));
       const info = new OAuthInfo({
         appId: CFG.appId,
         portalUrl: CFG.portalUrl,
-        popup: true,
+        popup: usePopup,
         popupCallbackUrl: new URL("oauth-callback.html", location.href).href,
         flowType: "auto",
         expiration: 20160                  // request a 2-week token (minutes)
@@ -517,8 +523,12 @@
         try { localStorage.setItem(CRED_KEY, JSON.stringify(esriId.toJSON())); } catch (e) { /* ignore */ }
       });
 
-      // Already signed in? Then carry on without showing anything
+      // Already signed in (saved token, or just back from the sign-in redirect)? Then carry on.
       try { await esriId.checkSignInStatus(`${CFG.portalUrl}/sharing`); return; } catch (e) { /* not signed in */ }
+      // Back from the redirect but not yet processed? Ask for the credential silently (completes the code exchange).
+      if (!usePopup && /[?&#](code|access_token)=/.test(location.href)) {
+        try { await esriId.getCredential(`${CFG.portalUrl}/sharing`, { oAuthPopupConfirmation: false }); return; } catch (e) { /* fall through to the button */ }
+      }
 
       // Otherwise ask for one click - popups must be triggered by a user gesture
       await new Promise((resolve) => {

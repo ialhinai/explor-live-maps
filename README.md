@@ -83,6 +83,7 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 |---|---|---|
 | `project` | `bolivia3d` | Preset to use (see `PRESETS` in `index.html`) |
 | `layerUrl` | preset | FeatureServer layer URL (include `/0`) |
+| `authPopup` | `auto` | Sign-in style: `auto` = full-page redirect when opened directly (phones), popup when embedded in a dashboard |
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `utc_time` | Field that sequences the animation; converted to Bolivia local days (`timeZone`). Falls back to `local_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
