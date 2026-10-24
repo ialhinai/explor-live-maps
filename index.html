@@ -57,7 +57,11 @@
       position: absolute; top: var(--gutter); left: var(--gutter);
       pointer-events: none; max-width: 60%;
     }
-    #hud-logo { position: absolute; top: var(--gutter); right: var(--gutter); pointer-events: none; }
+    #hud-right {
+      position: absolute; top: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 24px);
+      display: flex; flex-direction: column; align-items: center; pointer-events: none;
+    }
+    #hud-logo { pointer-events: none; }
     #logo {
       display: block; height: clamp(24px, 4.2vw, 52px); width: auto;
       filter: drop-shadow(0 1px 6px rgba(0,0,0,0.6));      /* keeps it legible over bright imagery */
@@ -122,8 +126,8 @@
     /* ---------- Status chip (bottom-right, above timeline) ---------- */
     /* Right-side map furniture block (vertically centred) */
     #hud-map {
-      position: absolute; right: var(--gutter); top: 50%; transform: translateY(-50%);
-      display: flex; flex-direction: column; align-items: flex-end; gap: clamp(10px, 2vh, 18px); pointer-events: none;
+      margin: auto 0;                                      /* vertically centred in the column, under the logo */
+      display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 18px); pointer-events: none;
     }
     /* North arrow */
     #north { width: clamp(22px, 2.8vw, 34px); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
@@ -132,7 +136,7 @@
     #north .n-light { fill: var(--ink); }
     #north .n-dark { fill: rgba(232,238,245,0.35); }
     /* Scale bar: alternating two-segment bar + label */
-    #scalebar { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #scalebar { display: flex; flex-direction: column; align-items: center; gap: 4px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
     #scalebar .bar { display: flex; height: 5px; border: 1px solid rgba(232,238,245,0.8); }
     #scalebar .bar span { flex: 1; }
     #scalebar .bar span:first-child { background: rgba(232,238,245,0.85); }
@@ -170,8 +174,7 @@
 
     /* ---------- Debug panel (?debug=1) ---------- */
     #debug {
-      position: absolute; left: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 18px);
-      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-dim);
+      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-dim); text-align: left;
       background: var(--panel); padding: 8px 10px; border-radius: 4px; white-space: pre; display: none; z-index: 5;
     }
 
@@ -204,12 +207,15 @@
     </div>
   </div>
 
-  <!-- Company logo (top-right) -->
-  <div id="hud-logo"><img id="logo" alt="Explor" /></div>
+
 
   <!-- Live status -->
-  <!-- Map furniture, right side middle: north arrow, scale bar, data source / live status -->
+  <!-- Right-hand column: logo at the top, map furniture centred below it, all on one vertical axis -->
+  <div id="hud-right">
+  <div id="hud-logo"><img id="logo" alt="Explor" /></div>
+  <!-- Map furniture: metadata (debug), north arrow, scale bar, data source / live status -->
   <div id="hud-map">
+    <div id="debug"></div>
     <div id="north" title="North">
       <svg viewBox="0 0 24 40" aria-hidden="true">
         <text x="12" y="9" text-anchor="middle">N</text>
@@ -219,6 +225,7 @@
     </div>
     <div id="scalebar"><div class="bar"><span></span><span></span></div><div class="lbl" id="scale-lbl"></div></div>
     <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
+  </div>
   </div>
 
   <!-- Daily bars + cumulative curve + playhead -->
@@ -230,7 +237,6 @@
     <canvas id="timeline" title="Click to jump to a day"></canvas>
   </div>
 
-  <div id="debug"></div>
   <div id="attribution">Esri</div>
 
   <!-- Loading / sign-in / error overlay -->
@@ -280,7 +286,7 @@
       labels: true,                         // faint reference labels (towns, roads) over the basemap
       interactive: false,                   // allow pan/zoom (off so the dashboard page scrolls normally)
       rotation: 0,                          // map rotation in degrees (e.g. to square up the survey grid)
-      padding: 0.06,                        // extra margin around the data extent (fraction)
+      padding: 0.03,                        // extra margin around the data extent (fraction)
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
@@ -478,7 +484,7 @@
       if (CFG.tzMode === "wallclock") zone = null;
       else if (CFG.tzMode && CFG.tzMode !== "auto") zone = CFG.tzMode;
       // Service declares its own time reference: the SDK returns true instants, so convert into that zone
-      else if (layer.dateFieldsTimeZone && !["UTC", "unknown"].includes(layer.dateFieldsTimeZone)) zone = layer.dateFieldsTimeZone;
+      else if (layer.dateFieldsTimeZone && !["UTC", "Etc/UTC", "GMT", "unknown"].includes(layer.dateFieldsTimeZone)) zone = layer.dateFieldsTimeZone;
       else zone = /local/i.test(dateField) ? null : CFG.timeZone;
 
       // Page through the layer (hosted layers cap each request at maxRecordCount)
@@ -819,15 +825,22 @@
       async function fitView() {
         if (!dataBox) return;
         const w = view.width, h = view.height;
-        const top = Math.min($("hud-title").getBoundingClientRect().bottom + 12, h * 0.4);
+        const title = $("hud-title").getBoundingClientRect();
+        const furn = $("hud-right").getBoundingClientRect();
         const tl = $("hud-timeline");
         const bottom = tl.offsetParent ? Math.min(h - tl.getBoundingClientRect().top + 16, h * 0.35) : 24;
-        const availW = Math.max(w - 2 * 24, 50), availH = Math.max(h - top - bottom, 50);
+        // Free rectangle: right of the title column, left of the north arrow / scale stack, above the scrubber
+        let L = title.right + 24, Rr = (furn.width ? furn.left : w) - 24, T = 24;
+        // Narrow tiles: the title column is too wide to sit beside, so reserve the space above the map instead
+        if (Rr - L < w * 0.45) { L = 24; Rr = w - 24; T = Math.min(title.bottom + 12, h * 0.4); }
+        const availW = Math.max(Rr - L, 50), availH = Math.max(h - T - bottom, 50);
         const bw = (dataBox.xmax - dataBox.xmin) * (1 + 2 * CFG.padding) || 1000;
         const bh = (dataBox.ymax - dataBox.ymin) * (1 + 2 * CFG.padding) || 1000;
         const res = Math.max(bw / availW, bh / availH);           // metres per pixel
-        const cx = (dataBox.xmin + dataBox.xmax) / 2;
-        const cy = (dataBox.ymin + dataBox.ymax) / 2 - ((bottom - top) / 2) * res; // shift so data sits between HUD blocks
+        // Centre of the data goes to the centre of the free rectangle (screen y grows downwards)
+        const sx = (L + Rr) / 2 - w / 2, sy = (T + (h - bottom)) / 2 - h / 2;
+        const cx = (dataBox.xmin + dataBox.xmax) / 2 - sx * res;
+        const cy = (dataBox.ymin + dataBox.ymax) / 2 + sy * res;
         // goTo silently ignores a plain-object point centre in SDK 5.x, so pass [lon, lat] (always honoured)
         const R = 6378137;
         const lon = (cx / R) * 180 / Math.PI;
@@ -887,9 +900,9 @@
         map.remove(rippleLayer); map.add(rippleLayer);
 
         // Frame the survey between the HUD blocks (see fitView)
-        let [xmin, xmax, ymin, ymax] = [Infinity, -Infinity, Infinity, -Infinity];
-        for (const r of data.rows) { if (r.x < xmin) xmin = r.x; if (r.x > xmax) xmax = r.x; if (r.y < ymin) ymin = r.y; if (r.y > ymax) ymax = r.y; }
-        dataBox = { xmin, xmax, ymin, ymax };
+        const xs = Float64Array.from(data.rows, (r) => r.x).sort(), ys = Float64Array.from(data.rows, (r) => r.y).sort();
+        const q = (a, f) => a[Math.min(a.length - 1, Math.max(0, Math.round(f * (a.length - 1))))];
+        dataBox = { xmin: q(xs, 0.002), xmax: q(xs, 0.998), ymin: q(ys, 0.002), ymax: q(ys, 0.998) };
         await view.when();
         await fitView();
 
