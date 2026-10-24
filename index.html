@@ -91,7 +91,7 @@
     .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); color: var(--accent-warm); }
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
-    :root { --tl-h: clamp(44px, 8vh, 62px); }      /* scrubber height, reused by elements stacked above it */
+    :root { --tl-h: clamp(60px, 12vh, 92px); }      /* scrubber height, reused by elements stacked above it */
     #hud-timeline {
       position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 10px);
       height: var(--tl-h); display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px); pointer-events: auto;
@@ -109,7 +109,7 @@
     #tl-play.paused .ic-play { display: block; }
     #tl-play.paused .ic-pause { display: none; }
     /* Track canvas: click anywhere to jump to that day */
-    #timeline { flex: 1; height: 100%; display: block; cursor: pointer; }
+    #timeline { flex: 1 1 0; min-width: 0; width: 0; height: 100%; display: block; cursor: pointer; }   /* width:0 stops the canvas resolution from widening the row */
 
     /* ---------- Status chip (bottom-right, above timeline) ---------- */
     #status {
@@ -601,7 +601,7 @@
 
       const n = data.nDays, max = Math.max(...data.daily, 1);
       const x = (t) => SCRUB_PAD + (Math.min(Math.max(t, 0), n) / n) * (w - 2 * SCRUB_PAD);   // project day -> px
-      const y = Math.round(h * 0.42) + 0.5;                                                    // track line
+      const y = Math.round(h - Math.max(22, h * 0.3)) + 0.5;                                    // track line (labels below it)
       const headX = x(T);
 
       // Hairline track
@@ -626,6 +626,53 @@
         const label = MON[d.getUTCMonth()].toUpperCase() + (i === 0 || d.getUTCMonth() === 0 ? ` ${d.getUTCFullYear()}` : "");
         ctx.fillStyle = "rgba(232,238,245,0.55)"; ctx.fillText(label, px + 4, y + 9);
       }
+
+      // Daily line: nodes per day, drawn up to the playhead so it "writes itself" as time moves
+      const top = 4, base = y - 7;                                   // vertical band for the line
+      const vy = (v) => base - (v / max) * (base - top);             // count -> px
+      const pts = data.daily.map((v, i) => [x(i + 0.5), vy(v)]);     // one point per day, at mid-day
+      // Value at the playhead, eased between neighbouring days so the rider glides
+      const tc = Math.min(Math.max(T - 0.5, 0), n - 1), i0 = Math.floor(tc), f = tc - i0;
+      const vHead = data.daily[i0] + (data.daily[Math.min(i0 + 1, n - 1)] - data.daily[i0]) * (f * f * (3 - 2 * f));
+      const riderY = vy(vHead);
+      // Visible points: everything left of the playhead, then the rider itself
+      const vis = pts.filter((p) => p[0] < headX);
+      vis.push([headX, riderY]);
+      if (T > 0 && vis.length > 1) {
+        // Smooth path through the points (midpoint quadratic curves)
+        const path = new Path2D();
+        path.moveTo(vis[0][0], vis[0][1]);
+        for (let k = 1; k < vis.length - 1; k++) {
+          const mx = (vis[k][0] + vis[k + 1][0]) / 2, my = (vis[k][1] + vis[k + 1][1]) / 2;
+          path.quadraticCurveTo(vis[k][0], vis[k][1], mx, my);
+        }
+        path.lineTo(vis[vis.length - 1][0], vis[vis.length - 1][1]);
+        // Soft area under the line, fading to nothing at the track
+        const area = new Path2D(path);
+        area.lineTo(headX, base); area.lineTo(vis[0][0], base); area.closePath();
+        const fill = ctx.createLinearGradient(0, top, 0, base);
+        fill.addColorStop(0, rgba(RAMP.rest, 0.22)); fill.addColorStop(1, rgba(RAMP.rest, 0));
+        ctx.fillStyle = fill; ctx.fill(area);
+        // The line itself, glowing
+        ctx.save();
+        ctx.shadowColor = rgba(RAMP.rest, 0.8); ctx.shadowBlur = 6;
+        ctx.strokeStyle = rgba(RAMP.rest, 0.95); ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+        ctx.stroke(path);
+        ctx.restore();
+        // Rider: a small white-hot dot riding the line (the exact count is in "This day", top right)
+        ctx.save();
+        ctx.shadowColor = rgba(RAMP.warm, 1); ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(headX, riderY, 3, 0, Math.PI * 2); ctx.fillStyle = rgba(RAMP.hot, 1); ctx.fill();
+        ctx.restore();
+        // Thin stem linking the rider to the playhead on the track
+        ctx.fillStyle = "rgba(232,238,245,0.25)"; ctx.fillRect(Math.round(headX) - 0.5, riderY + 4, 1, Math.max(base - riderY - 4, 0));
+      }
+      // Faint dotted guide for days still to come
+      ctx.save();
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = "rgba(232,238,245,0.12)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(headX, base); ctx.lineTo(x(n), base); ctx.stroke();
+      ctx.restore();
+      ctx.textBaseline = "top";
 
       // Elapsed line in node green, with a soft glow
       ctx.save();

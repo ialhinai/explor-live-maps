@@ -1,6 +1,6 @@
 # Live deployment animation (ArcGIS Online dashboard embed)
 
-A single web page that reads a hosted node-deployment layer **live**, and plays it back day by day: each new node flashes white-hot, cools through yellow and lime, and settles to the dashboard node green (#55FF00), while a date counter, running totals and a play/pause time scrubber track progress, and each new day's working areas "ping" on the map with sonar ripples. It loops forever, and re-queries the layer between loops, so it grows by one day every day with no one touching it.
+A single web page that reads a hosted node-deployment layer **live**, and plays it back day by day: each new node flashes white-hot, cools through yellow and lime, and settles to the dashboard node green (#55FF00), while a date counter, running totals and a play/pause time scrubber (with a line of nodes per day that draws itself as time moves) track progress, and each new day's working areas "ping" on the map with sonar ripples. It loops forever, and re-queries the layer between loops, so it grows by one day every day with no one touching it.
 
 - `index.html`: the animation (ArcGIS Maps SDK for JavaScript 5.1, no build step)
 - `oauth-callback.html`: sign-in popup helper (only used if the layer stays private)
@@ -26,7 +26,7 @@ Your daily deployment notebook appends to the hosted layer → the next loop sho
 | White → yellow → lime → light green "cooling" ramp | Makes the *new* stand out (avoids change blindness) while the history stays readable; light green matches the nodes on the dashboard map |
 | Bloom on bright pixels only | Firefly glow on fresh nodes, crisp settled grid |
 | Faint ghost of the full footprint | Viewer sees where the spread is heading |
-| Time scrubber with month marks + glowing playhead | A temporal legend (Flourish-style): the eye always knows *when* it is; click to jump to any day |
+| Time scrubber with a self-drawing daily line, month marks + glowing playhead | A temporal legend (Flourish-style): the eye always knows *when* it is; click to jump to any day |
 | Sonar ripples where each day's crews start | Draws the eye to where work moved that day, without another chart |
 | Hold at start and end | Time to read the final state before the loop restarts |
 | Day boundary from `local_time` | Bolivia wall-clock days, no UTC-midnight drift |
