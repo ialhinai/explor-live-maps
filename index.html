@@ -24,6 +24,7 @@
       --accent-hot: #fff3cf;         /* newborn node (white-hot) */
       --accent-warm: #ffb000;        /* node a few hours old (amber) */
       --accent-cool: #beff78;        /* node a day old (pale lime) */
+      --accent-yellow: #ffd640;      /* node a few hours old (warm yellow) */
       --accent-rest: #55ff00;        /* settled node (dashboard green #55FF00) */
       --panel: rgba(7, 10, 15, 0.62);/* HUD glass panels */
       --gutter: clamp(12px, 2.2vw, 28px);
@@ -75,7 +76,14 @@
       font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
       text-shadow: 0 0 24px rgba(255, 176, 0, 0.18);
     }
-    #dayof { font-size: clamp(13px, 1.6vw, 19px); color: var(--accent-rest); font-weight: 600; letter-spacing: 0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    #dayof { font-size: clamp(13px, 1.6vw, 19px); font-weight: 600; letter-spacing: 0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    /* Shared node-ramp gradient text: settled green -> lime -> warm yellow (follows the node colour) */
+    .title, #dayof, .stat.small .num {
+      color: var(--accent-rest);                                   /* fallback for browsers without background-clip:text */
+      background: linear-gradient(90deg, var(--accent-rest) 0%, var(--accent-cool) 55%, var(--accent-yellow) 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      width: fit-content;                                          /* gradient spans the text, not the whole panel */
+    }
 
     /* ---------- HUD: counters (top-right) ---------- */
     #hud-stats {
@@ -88,7 +96,7 @@
       font-size: clamp(32px, 5.2vw, 72px); line-height: 1; font-variant-numeric: tabular-nums;
     }
     .stat .lbl { font-size: clamp(10px, 1.1vw, 13px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
-    .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); color: var(--accent-warm); }
+    .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); margin-left: auto; }   /* colour: shared gradient below; auto margin keeps it right-aligned */
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
     :root { --tl-h: clamp(72px, 14vh, 104px); }      /* scrubber height, reused by elements stacked above it */
@@ -169,7 +177,7 @@
   <div id="hud-title">
     <img id="logo" alt="Explor" />
     <div class="eyebrow" id="eyebrow">Explor</div>
-    <div class="title" id="title">Node deployment</div>
+    <div class="title" id="title">Node Deployment</div>
     <div id="date">&nbsp;</div>
     <div id="dayof">&nbsp;</div>
   </div>
@@ -215,7 +223,7 @@
       bolivia3d: {
         layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
         eyebrow: "Bolivia 3D Seismic Operations",                     // small caps line above the title (logo sits above it)
-        title: "Node deployment",                   // main title
+        title: "Node Deployment",                   // main title
         dateField: "local_time",                    // timestamp used to sequence the animation
         dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
         timeZone: "America/La_Paz",                 // used only when the chosen field is a true UTC instant
@@ -273,6 +281,8 @@
       const h = CFG.nodeColor.replace("#", "");
       RAMP.rest = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 0.85];
     }
+    // Title, "Day N of M" and other accents take the same colour as the settled nodes
+    document.documentElement.style.setProperty("--accent-rest", `rgb(${RAMP.rest[0]}, ${RAMP.rest[1]}, ${RAMP.rest[2]})`);
 
     // =====================================================================
     // 2. SMALL DOM HELPERS
