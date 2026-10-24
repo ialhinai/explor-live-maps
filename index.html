@@ -91,7 +91,7 @@
     .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); color: var(--accent-warm); }
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
-    :root { --tl-h: clamp(60px, 12vh, 92px); }      /* scrubber height, reused by elements stacked above it */
+    :root { --tl-h: clamp(72px, 14vh, 104px); }      /* scrubber height, reused by elements stacked above it */
     #hud-timeline {
       position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--gutter) + 10px);
       height: var(--tl-h); display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px); pointer-events: auto;
@@ -601,7 +601,7 @@
 
       const n = data.nDays, max = Math.max(...data.daily, 1);
       const x = (t) => SCRUB_PAD + (Math.min(Math.max(t, 0), n) / n) * (w - 2 * SCRUB_PAD);   // project day -> px
-      const y = Math.round(h - Math.max(22, h * 0.3)) + 0.5;                                    // track line (labels below it)
+      const y = Math.round(h - Math.max(34, h * 0.38)) + 0.5;                                   // track line (day numbers + months below it)
       const headX = x(T);
 
       // Hairline track
@@ -615,16 +615,36 @@
         ctx.fillRect(Math.round(x(i)) - 0.5, y + 3, 1, 4);
       }
 
-      // Month marks: taller tick + label (first day of the project and every 1st of the month)
-      ctx.font = `600 ${Math.max(9, Math.min(11, h * 0.2))}px Barlow, system-ui, sans-serif`;
+      // Day numbers under the track, centred on each day. Thinned out (every 2nd, 5th...) when days get narrow.
+      const dayPx = (w - 2 * SCRUB_PAD) / n;
+      const fs = Math.max(9, Math.min(11, h * 0.14));
+      const step = [1, 2, 5, 7, 10, 15].find((k) => k * dayPx >= fs * 1.9) || 30;
+      const curDay = Math.min(Math.floor(T), n - 1);
+      ctx.textBaseline = "top"; ctx.textAlign = "center";
+      let lastLabelX = -Infinity;                                    // avoids two numbers touching
+      for (let i = 0; i < n; i++) {
+        const dom = new Date((data.firstDay + i) * 864e5).getUTCDate();
+        const isCur = i === curDay && T >= 0;
+        if (!isCur && (dom % step !== 0 && dom !== 1) ) continue;   // keep 1st of month and every step-th day
+        if (!isCur && Math.abs(i - curDay) * dayPx < fs * 1.6 && T >= 0) continue; // make room around the current day
+        if (!isCur && x(i + 0.5) - lastLabelX < fs * 1.7) continue;                // too close to the previous number
+        lastLabelX = x(i + 0.5);
+        ctx.font = `${isCur ? 700 : 500} ${isCur ? fs + 1 : fs}px Barlow, system-ui, sans-serif`;
+        ctx.fillStyle = isCur ? rgba(RAMP.hot, 1) : (i < T ? "rgba(232,238,245,0.6)" : "rgba(232,238,245,0.3)");
+        ctx.fillText(String(dom), x(i + 0.5), y + 9);
+      }
+      ctx.textAlign = "left";
+
+      // Month marks: taller tick + label under the day numbers (project start and every 1st of the month)
+      ctx.font = `600 ${Math.max(9, Math.min(11, h * 0.14))}px Barlow, system-ui, sans-serif`;
       ctx.textBaseline = "top";
       for (let i = 0; i <= n; i++) {
         const d = new Date((data.firstDay + i) * 864e5);
         if (i !== 0 && d.getUTCDate() !== 1) continue;
         const px = Math.round(x(i)) - 0.5;
-        ctx.fillStyle = "rgba(232,238,245,0.45)"; ctx.fillRect(px, y - 5, 1, 13);
+        ctx.fillStyle = "rgba(232,238,245,0.45)"; ctx.fillRect(px, y - 5, 1, fs * 2 + 18);
         const label = MON[d.getUTCMonth()].toUpperCase() + (i === 0 || d.getUTCMonth() === 0 ? ` ${d.getUTCFullYear()}` : "");
-        ctx.fillStyle = "rgba(232,238,245,0.55)"; ctx.fillText(label, px + 4, y + 9);
+        ctx.fillStyle = rgba(RAMP.rest, 0.75); ctx.fillText(label, px + 3, y + 9 + fs + 5);
       }
 
       // Daily line: nodes per day, drawn up to the playhead so it "writes itself" as time moves
