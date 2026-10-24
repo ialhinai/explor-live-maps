@@ -92,7 +92,7 @@
     /* ---------- HUD: counters (top-right) ---------- */
     #hud-stats {
       display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 8px clamp(18px, 3vw, 40px);
-      margin-top: clamp(28px, 6.5vh, 60px);                /* the gap under "Day N of M" */
+      margin-top: clamp(20px, 4.5vh, 56px);                /* the gap under "Day N of M" */
       pointer-events: none; text-align: left;
     }
     .stat .num {
@@ -129,20 +129,25 @@
       margin: auto 0;                                      /* vertically centred in the column, under the logo */
       display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 18px); pointer-events: none;
     }
+    /* North arrow + scale bar row (left column) */
+    #hud-furn { display: flex; flex-direction: column; align-items: center; width: fit-content; gap: 6px; margin-top: clamp(12px, 2.4vh, 28px); }   /* north arrow centred above the scale bar */
     /* North arrow */
-    #north { width: clamp(22px, 2.8vw, 34px); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #north { width: clamp(18px, 2.2vw, 28px); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
     #north svg { display: block; width: 100%; height: auto; overflow: visible; }
     #north text { font: 700 10px "Barlow", sans-serif; fill: var(--ink); }
     #north .n-light { fill: var(--ink); }
     #north .n-dark { fill: rgba(232,238,245,0.35); }
     /* Scale bar: alternating two-segment bar + label */
-    #scalebar { display: flex; flex-direction: column; align-items: center; gap: 4px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
-    #scalebar .bar { display: flex; height: 5px; border: 1px solid rgba(232,238,245,0.8); }
+    #scalebar { display: flex; flex-direction: column; align-items: center; gap: 5px; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
+    #scalebar .bar { display: flex; height: 8px; border: 1.5px solid rgba(232,238,245,0.85); }
     #scalebar .bar span { flex: 1; }
+    #scalebar .bar span + span { border-left: 1.5px solid rgba(232,238,245,0.85); }
     #scalebar .bar span:first-child { background: rgba(232,238,245,0.85); }
-    #scalebar .lbl { font-size: 10px; letter-spacing: 0.1em; color: var(--ink); font-variant-numeric: tabular-nums; }
+    #scalebar .lbl { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: var(--ink); font-variant-numeric: tabular-nums; }
     /* Data source / live status */
     #status {
+      margin-top: clamp(8px, 1.8vh, 18px);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
       font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim);
       display: flex; align-items: center; gap: 6px; pointer-events: none;
     }
@@ -174,9 +179,28 @@
 
     /* ---------- Debug panel (?debug=1) ---------- */
     #debug {
-      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: var(--ink-dim); text-align: left;
-      background: var(--panel); padding: 8px 10px; border-radius: 4px; white-space: pre; display: none; z-index: 5;
+      margin-top: clamp(14px, 2.8vh, 34px);                /* clear space under the counters */
+      width: fit-content;
+      font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: rgba(232,238,245,0.75); text-align: left;
+      white-space: pre; display: none; z-index: 5;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9);              /* no box: a soft shadow keeps it readable over imagery */
     }
+    /* ---------- Progress gauge ---------- */
+    .stat.gauge { display: flex; flex-direction: column; align-items: center; }
+    .ring-wrap { position: relative; width: clamp(64px, 7.5vw, 100px); aspect-ratio: 1; }
+    .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }   /* start at 12 o'clock */
+    .g-track { fill: none; stroke: rgba(232,238,245,0.14); stroke-width: 7; }
+    .g-ticks { fill: none; stroke: rgba(232,238,245,0.35); stroke-width: 3; stroke-dasharray: 0.6 29.56; }  /* 10 ticks on r=48 */
+    .g-arc { fill: none; stroke: url(#g-ring); stroke-width: 7; stroke-linecap: round;
+             filter: drop-shadow(0 0 4px var(--accent-rest)); transition: stroke-dasharray 0.25s linear; }
+    .g-head { fill: #fffae1; filter: drop-shadow(0 0 4px var(--accent-yellow)); }
+    .g-pct {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;   /* number and % on one line */
+      font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
+      font-size: clamp(15px, 1.9vw, 25px); font-variant-numeric: tabular-nums; color: var(--ink);
+    }
+    .g-pct small { font-size: 0.6em; margin-left: 1px; color: var(--ink-dim); }
+    .stat.gauge .lbl { text-align: center; }
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
     @media (max-height: 340px) {
@@ -196,7 +220,7 @@
   <!-- Title + current date -->
   <div id="hud-title">
     <div class="eyebrow" id="eyebrow">Explor</div>
-    <div class="title" id="title">Node Deployment</div>
+    <div class="title" id="title">Ibibobo Node Deployment</div>
     <div id="date">&nbsp;</div>
     <div id="dayof">&nbsp;</div>
 
@@ -204,28 +228,53 @@
     <div id="hud-stats">
       <div class="stat"><div class="num" id="n-total">0</div><div class="lbl">Nodes deployed</div></div>
       <div class="stat small"><div class="num" id="n-day">0</div><div class="lbl">This day</div></div>
+      <!-- Progress gauge: share of the planned total deployed so far -->
+      <div class="stat gauge" id="stat-gauge">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <defs>
+              <linearGradient id="g-ring" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0" style="stop-color: var(--accent-rest)"/>
+                <stop offset="0.55" style="stop-color: var(--accent-cool)"/>
+                <stop offset="1" style="stop-color: var(--accent-yellow)"/>
+              </linearGradient>
+            </defs>
+            <circle class="g-track" cx="50" cy="50" r="42"/>                       <!-- full ring, faint -->
+            <circle class="g-ticks" cx="50" cy="50" r="48"/>                       <!-- 10% tick marks -->
+            <circle class="g-arc" id="g-arc" cx="50" cy="50" r="42"/>             <!-- progress arc -->
+            <circle class="g-head" id="g-head" cx="50" cy="8" r="3.2"/>          <!-- glowing tip -->
+          </svg>
+          <div class="g-pct"><span id="g-pct">0</span><small>%</small></div>
+        </div>
+        <div class="lbl" id="g-lbl">of planned</div>
+      </div>
     </div>
+
+    <!-- Metadata (?debug=1) -->
+    <div id="debug"></div>
+
+    <!-- North arrow + scale bar, side by side under the metadata -->
+    <div id="hud-furn">
+      <div id="north" title="North">
+        <svg viewBox="0 0 24 40" aria-hidden="true">
+          <text x="12" y="9" text-anchor="middle">N</text>
+          <path d="M12 13 L18 36 L12 31 Z" class="n-dark"/>   <!-- right half, shaded -->
+          <path d="M12 13 L6 36 L12 31 Z" class="n-light"/>   <!-- left half, light -->
+        </svg>
+      </div>
+      <div id="scalebar"><div class="bar"><span></span><span></span></div><div class="lbl" id="scale-lbl"></div></div>
+    </div>
+
+    <!-- Live update status, under the scale bar -->
+    <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
   </div>
 
 
 
   <!-- Live status -->
-  <!-- Right-hand column: logo at the top, map furniture centred below it, all on one vertical axis -->
+  <!-- Right-hand column: Explor logo -->
   <div id="hud-right">
   <div id="hud-logo"><img id="logo" alt="Explor" /></div>
-  <!-- Map furniture: metadata (debug), north arrow, scale bar, data source / live status -->
-  <div id="hud-map">
-    <div id="debug"></div>
-    <div id="north" title="North">
-      <svg viewBox="0 0 24 40" aria-hidden="true">
-        <text x="12" y="9" text-anchor="middle">N</text>
-        <path d="M12 13 L18 36 L12 31 Z" class="n-dark"/>   <!-- right half, shaded -->
-        <path d="M12 13 L6 36 L12 31 Z" class="n-light"/>   <!-- left half, light -->
-      </svg>
-    </div>
-    <div id="scalebar"><div class="bar"><span></span><span></span></div><div class="lbl" id="scale-lbl"></div></div>
-    <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
-  </div>
   </div>
 
   <!-- Daily bars + cumulative curve + playhead -->
@@ -259,10 +308,11 @@
       bolivia3d: {
         layerUrl: "https://services7.arcgis.com/95uulPMgoEYlLkdL/arcgis/rest/services/a30934/FeatureServer/0",
         eyebrow: "Bolivia 3D Seismic Operations",                     // small caps line above the title (logo sits above it)
-        title: "Node Deployment",                   // main title
-        dateField: "local_time",                    // timestamp used to sequence the animation
-        dateFallbacks: ["utc_time", "LocalTime", "UTC_Time"], // tried in order if dateField is absent
-        timeZone: "America/La_Paz",                 // used only when the chosen field is a true UTC instant
+        title: "Ibibobo Node Deployment",           // main title
+        dateField: "utc_time",                      // timestamp used to sequence the animation (true UTC instant)
+        dateFallbacks: ["local_time", "UTC_Time", "LocalTime"], // tried in order if dateField is absent
+        target: 56588,                              // planned total deployments, drives the progress gauge (0 hides it)
+        timeZone: "America/La_Paz",                 // utc_time is converted to Bolivia local days (UTC-4)
         basemap: "imagery"                          // imagery (satellite) | hillshade | dark
       }
     };
@@ -287,12 +337,14 @@
       interactive: false,                   // allow pan/zoom (off so the dashboard page scrolls normally)
       rotation: 0,                          // map rotation in degrees (e.g. to square up the survey grid)
       padding: 0.03,                        // extra margin around the data extent (fraction)
+      panX: 0.06,                           // nudge the survey right (+) or left (-), as a fraction of the free map width
+      target: 0,                            // planned total for the progress gauge (set per project; 0 hides it)
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
       nodeColor: "",                        // settled node colour as hex (e.g. 7ED957); empty = default light green
       brightness: 0.85,                     // satellite basemap brightness (1 = original, lower = darker)
-      debug: false                          // ?debug=1 -> diagnostics panel
+      debug: true                           // metadata block under the counters (always shown; ?debug=0 hides it)
     };
 
     // Merge: defaults <- preset <- URL parameters (URL wins)
@@ -718,12 +770,15 @@
         const area = new Path2D(path);
         area.lineTo(headX, base); area.lineTo(vis[0][0], base); area.closePath();
         const fill = ctx.createLinearGradient(0, top, 0, base);
-        fill.addColorStop(0, rgba(RAMP.rest, 0.22)); fill.addColorStop(1, rgba(RAMP.rest, 0));
+        fill.addColorStop(0, rgba(RAMP.warm, 0.20)); fill.addColorStop(1, rgba(RAMP.warm, 0));
         ctx.fillStyle = fill; ctx.fill(area);
         // The line itself, glowing
         ctx.save();
-        ctx.shadowColor = rgba(RAMP.rest, 0.8); ctx.shadowBlur = 6;
-        ctx.strokeStyle = rgba(RAMP.rest, 0.95); ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+        // Vertical gradient: low values green, high values yellow, peaks almost white
+        const stroke = ctx.createLinearGradient(0, base, 0, top);
+        stroke.addColorStop(0, rgba(RAMP.rest, 1)); stroke.addColorStop(0.6, rgba(RAMP.warm, 1)); stroke.addColorStop(1, rgba(RAMP.hot, 1));
+        ctx.shadowColor = rgba(RAMP.warm, 0.7); ctx.shadowBlur = 6;
+        ctx.strokeStyle = stroke; ctx.lineWidth = 1.8; ctx.lineJoin = "round";
         ctx.stroke(path);
         ctx.restore();
         // Rider: a small white-hot dot riding the line (the exact count is in "This day", top right)
@@ -741,10 +796,10 @@
       ctx.restore();
       ctx.textBaseline = "top";
 
-      // Elapsed line in node green, with a soft glow
+      // Elapsed track in soft white (the daily line above it carries the colour)
       ctx.save();
-      ctx.shadowColor = rgba(RAMP.rest, 0.9); ctx.shadowBlur = 8;
-      ctx.fillStyle = rgba(RAMP.rest, 0.95); ctx.fillRect(x(0), y - 1, headX - x(0), 2);
+      ctx.shadowColor = "rgba(232,238,245,0.6)"; ctx.shadowBlur = 6;
+      ctx.fillStyle = "rgba(232,238,245,0.85)"; ctx.fillRect(x(0), y - 1, headX - x(0), 2);
       ctx.restore();
 
       // Comet tail: last stretch fades from green into the white-hot head
@@ -838,7 +893,7 @@
         const bh = (dataBox.ymax - dataBox.ymin) * (1 + 2 * CFG.padding) || 1000;
         const res = Math.max(bw / availW, bh / availH);           // metres per pixel
         // Centre of the data goes to the centre of the free rectangle (screen y grows downwards)
-        const sx = (L + Rr) / 2 - w / 2, sy = (T + (h - bottom)) / 2 - h / 2;
+        const sx = (L + Rr) / 2 - w / 2 + CFG.panX * availW, sy = (T + (h - bottom)) / 2 - h / 2;   // panX nudges the survey right
         const cx = (dataBox.xmin + dataBox.xmax) / 2 - sx * res;
         const cy = (dataBox.ymin + dataBox.ymax) / 2 + sy * res;
         // goTo silently ignores a plain-object point centre in SDK 5.x, so pass [lon, lat] (always honoured)
@@ -861,13 +916,13 @@
 
       // ---- North arrow + scale bar -------------------------------------------
       // Scale: ground metres per pixel at the map centre (Web Mercator stretches by 1/cos(latitude)),
-      // rounded to a "nice" length (1, 2 or 5 x 10^n) that fits in about 110 px.
+      // rounded to a "nice" length (1, 2 or 5 x 10^n) that fits in about 170 px.
       function updateFurniture() {
         $("north").style.transform = `rotate(${view.rotation || 0}deg)`;   // rotation = clockwise angle of north
         const lat = view.center?.latitude ?? 0;
         const mpp = view.resolution * Math.cos((lat * Math.PI) / 180);
         if (!mpp || !isFinite(mpp)) return;
-        const target = mpp * 110;
+        const target = mpp * 170;                         // aim for a bar about 170 px long
         const p10 = Math.pow(10, Math.floor(Math.log10(target)));
         const nice = [5, 2, 1].map((k) => k * p10).find((v) => v <= target) || p10;
         $("scalebar").querySelector(".bar").style.width = `${Math.round(nice / mpp)}px`;
@@ -909,7 +964,7 @@
         // First / last day (used by the debug panel)
         const d0 = new Date(data.firstDay * 864e5), d1 = new Date(data.lastDay * 864e5);
 
-        if (CFG.debug) {
+        if (CFG.debug) {                               // metadata block, shown by default
           $("debug").style.display = "block";
           $("debug").textContent =
             `source     ${raw.meta.source}\nrecords    ${nf.format(data.rows.length)}\ndate field ${raw.meta.dateField}\n` +
@@ -918,6 +973,22 @@
         }
         hideOverlay();
         return true;
+      }
+
+      // ---- Progress gauge: deployed so far vs the planned total ---------------
+      const G_CIRC = 2 * Math.PI * 42;                   // circumference of the arc circle
+      if (CFG.target > 0) $("g-lbl").textContent = `of ${nf.format(CFG.target)} planned`;
+      else $("stat-gauge").style.display = "none";
+      function updateGauge(k) {
+        if (!(CFG.target > 0)) return;
+        const f = Math.min(k / CFG.target, 1);           // fraction complete (capped at 100%)
+        $("g-arc").setAttribute("stroke-dasharray", `${(f * G_CIRC).toFixed(2)} ${G_CIRC.toFixed(2)}`);
+        $("g-arc").style.opacity = f > 0 ? 1 : 0;        // round line caps would show a dot at 0%
+        // Glowing tip at the end of the arc (svg is rotated -90deg, so angle 0 = 12 o'clock)
+        const a = f * 2 * Math.PI;
+        $("g-head").setAttribute("cx", (50 + 42 * Math.cos(a)).toFixed(2));
+        $("g-head").setAttribute("cy", (50 + 42 * Math.sin(a)).toFixed(2));
+        $("g-pct").textContent = (f * 100).toFixed(f < 0.1 ? 1 : 0);
       }
 
       // ---- Animation loop ----------------------------------------------------
@@ -965,6 +1036,7 @@
         $("dayof").textContent = `Day ${shown + 1} of ${data.nDays}`;
         const k = countUpTo(data.tSorted, T);
         $("n-total").textContent = nf.format(k);
+        updateGauge(k);
         $("n-day").textContent = nf.format(T < 0 ? 0 : k - countUpTo(data.tSorted, dayIdx - 1e-9));
         drawTimeline(data, Math.max(T, 0));
       }
