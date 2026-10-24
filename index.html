@@ -76,7 +76,7 @@
     }
     #date {
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 700;
-      font-size: clamp(28px, 5.2vw, 68px); line-height: 1; margin-top: clamp(8px, 1.6vh, 18px);
+      font-size: clamp(28px, 5.2vw, 68px); line-height: 1; margin-top: clamp(18px, 3.6vh, 36px);   /* extra space between the title and the date */
       font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
       text-shadow: 0 0 24px rgba(255, 176, 0, 0.18);
     }
@@ -99,7 +99,8 @@
       font-family: "Barlow Condensed", "Barlow", sans-serif; font-weight: 600;
       font-size: clamp(32px, 5.2vw, 72px); line-height: 1; font-variant-numeric: tabular-nums;
     }
-    .stat .lbl { font-size: clamp(10px, 1.1vw, 13px); letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); margin-top: 3px; }
+    .stat .lbl { font-size: clamp(11px, 1.15vw, 14px); font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #f1f5f9; margin-top: 4px;
+                 text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8); }   /* readable over bright imagery */
     .stat.small .num { font-size: clamp(22px, 3.2vw, 42px); }   /* colour: shared gradient below */
 
     /* ---------- HUD: time scrubber (bottom, Flourish-style) ---------- */
@@ -129,8 +130,13 @@
       margin: auto 0;                                      /* vertically centred in the column, under the logo */
       display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 18px); pointer-events: none;
     }
-    /* North arrow + scale bar row (left column) */
-    #hud-furn { display: flex; flex-direction: column; align-items: center; width: fit-content; gap: 6px; margin-top: clamp(12px, 2.4vh, 28px); }   /* north arrow centred above the scale bar */
+    /* Bottom-left group above the scrubber: metadata box | north arrow + scale bar + status */
+    #hud-lower {
+      position: absolute; left: var(--gutter); bottom: calc(var(--gutter) + var(--tl-h) + 18px);
+      display: flex; align-items: flex-end; gap: clamp(18px, 2.5vw, 34px); pointer-events: none;
+    }
+    /* North arrow + scale bar (+ status), centred on each other */
+    #hud-furn { display: flex; flex-direction: column; align-items: center; width: fit-content; gap: 6px; }   /* north arrow centred above the scale bar */
     /* North arrow */
     #north { width: clamp(18px, 2.2vw, 28px); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.7)); }
     #north svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -146,7 +152,7 @@
     #scalebar .lbl { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; color: var(--ink); font-variant-numeric: tabular-nums; }
     /* Data source / live status */
     #status {
-      margin-top: clamp(8px, 1.8vh, 18px);
+      margin-top: 4px;
       text-shadow: 0 1px 3px rgba(0,0,0,0.9);
       font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim);
       display: flex; align-items: center; gap: 6px; pointer-events: none;
@@ -179,11 +185,12 @@
 
     /* ---------- Debug panel (?debug=1) ---------- */
     #debug {
-      margin-top: clamp(14px, 2.8vh, 34px);                /* clear space under the counters */
       width: fit-content;
-      font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: rgba(232,238,245,0.75); text-align: left;
+      font: 11px/1.5 ui-monospace, Menlo, Consolas, monospace; color: #e8eef5; text-align: left;
       white-space: pre; display: none; z-index: 5;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.9);              /* no box: a soft shadow keeps it readable over imagery */
+      background: rgba(7, 10, 15, 0.42);                    /* transparent dark glass */
+      border: 1px solid rgba(232, 238, 245, 0.16); border-radius: 6px; padding: 8px 12px;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
     }
     /* ---------- Progress gauge ---------- */
     .stat.gauge { display: flex; flex-direction: column; align-items: center; }
@@ -203,6 +210,9 @@
     .stat.gauge .lbl { text-align: center; }
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
+    @media (max-height: 560px) {
+      #debug { display: none !important; }   /* short tiles: drop the metadata box so nothing overlaps */
+    }
     @media (max-height: 340px) {
       #hud-timeline, #status, #scalebar { display: none; }
       #date { margin-top: 4px; }
@@ -250,10 +260,18 @@
       </div>
     </div>
 
-    <!-- Metadata (?debug=1) -->
+  </div>
+
+
+
+  <!-- Live status -->
+
+  <!-- Bottom-left group, just above the moving graphs: metadata box, north arrow + scale bar, live status -->
+  <div id="hud-lower">
+    <!-- Metadata (shown by default; ?debug=0 hides it) -->
     <div id="debug"></div>
 
-    <!-- North arrow + scale bar, side by side under the metadata -->
+    <!-- North arrow centred above the scale bar -->
     <div id="hud-furn">
       <div id="north" title="North">
         <svg viewBox="0 0 24 40" aria-hidden="true">
@@ -263,15 +281,11 @@
         </svg>
       </div>
       <div id="scalebar"><div class="bar"><span></span><span></span></div><div class="lbl" id="scale-lbl"></div></div>
+      <!-- Live update status, under the scale bar -->
+      <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
     </div>
-
-    <!-- Live update status, under the scale bar -->
-    <div id="status"><span class="dot"></span><span id="status-text">Loading</span></div>
   </div>
 
-
-
-  <!-- Live status -->
   <!-- Right-hand column: Explor logo -->
   <div id="hud-right">
   <div id="hud-logo"><img id="logo" alt="Explor" /></div>
