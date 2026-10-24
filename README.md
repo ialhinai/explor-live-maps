@@ -83,8 +83,8 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 |---|---|---|
 | `project` | `bolivia3d` | Preset to use (see `PRESETS` in `index.html`) |
 | `layerUrl` | preset | FeatureServer layer URL (include `/0`) |
-| `lite` | `auto` | Phone-friendly mode (auto on iPhone/iPad/Android): no ghost layer, no glow effects, no labels, fewer redraws. `1` forces it, `0` turns it off |
-| `authPopup` | `auto` | Sign-in style: `auto` = full-page redirect when opened directly (phones), popup when embedded in a dashboard |
+| `lite` | `auto` | Phone mode (auto on iPhone/iPad/Android): nodes are painted on a lightweight canvas instead of a map layer, no ghost layer, glow or labels, fewer redraws. `1` forces it, `0` turns it off |
+| `authPopup` | `auto` | Sign-in style: popup on computers and inside the dashboard; full-page redirect on phones opened directly |
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `utc_time` | Field that sequences the animation; converted to Bolivia local days (`timeZone`). Falls back to `local_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
