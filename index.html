@@ -365,6 +365,10 @@
       outlineFrame: true,                   // frame the map on the whole outline (steady view) instead of the deployed nodes
       outlineDraw: true,                    // trace the outline at the start of each loop
       scaleKm: 5,                           // scale bar length in km (0 = automatic "nice" length)
+      camera: "zoom",                       // "zoom": each day the camera dives into that day's work area and pulls back out; "static": fixed frame
+      zoomSecondsPerDay: 2.4,               // playback speed while camera = zoom (the moves need a little more time)
+      zoomMaxDuration: 120,                 // longest loop while camera = zoom, in seconds
+      zoomMax: 3.5,                         // deepest zoom-in, as a multiple of the full-survey view
       tzMode: "auto",                       // auto | wallclock | <IANA zone>  (see section 5)
       demo: false,                          // ?demo=1 -> synthetic grid, no sign-in needed
       logo: "explor-logo-white.png",        // logo file next to index.html ("" hides it)
@@ -849,6 +853,22 @@
       ctx.restore();
     }
 
+    // Each day's work area: centre and a robust size (mean +/- 2.2 standard deviations, at least 800 m)
+    function dayBoxes(rows, firstDay, nDays) {
+      const acc = Array.from({ length: nDays }, () => ({ n: 0, sx: 0, sy: 0, sxx: 0, syy: 0 }));
+      for (const r of rows) {
+        const a = acc[r.day - firstDay];
+        a.n++; a.sx += r.x; a.sy += r.y; a.sxx += r.x * r.x; a.syy += r.y * r.y;
+      }
+      return acc.map((a) => {
+        if (!a.n) return null;                                    // no deployments that day: camera stays out
+        const cx = a.sx / a.n, cy = a.sy / a.n;
+        const sdx = Math.sqrt(Math.max(a.sxx / a.n - cx * cx, 0)), sdy = Math.sqrt(Math.max(a.syy / a.n - cy * cy, 0));
+        return { cx, cy, w: Math.max(4.4 * sdx, 800) * 1.15, h: Math.max(4.4 * sdy, 800) * 1.15 };
+      });
+    }
+    const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     // Busiest working areas of each day (2.5 km bins, up to 3) - where the map "pings" when a day starts
     function dayClusters(rows, firstDay, nDays) {
       const CELL = 2500, out = Array.from({ length: nDays }, () => new Map());
@@ -906,7 +926,7 @@
       // Fit the data box into the screen area left free by the HUD (title on top,
       // timeline at the bottom), computing centre and scale directly so the fit
       // does not depend on basemap zoom levels.
-      let dataBox = null;
+      let dataBox = null, camHome = null;
       async function fitView() {
         if (!dataBox) return;
         const w = view.width, h = view.height;
@@ -931,6 +951,8 @@
         const lon = (cx / R) * 180 / Math.PI;
         const lat = (2 * Math.atan(Math.exp(cy / R)) - Math.PI / 2) * 180 / Math.PI;
         await view.goTo({ center: [lon, lat], scale: res * 96 * 39.37 }, { animate: false });
+        // Home view, used by the day-by-day camera (centre offset from the data centre = HUD shift)
+        camHome = { cx, cy, res, availW, availH, dcx: (dataBox.xmin + dataBox.xmax) / 2, dcy: (dataBox.ymin + dataBox.ymax) / 2 };
 
         // Marker size from typical node spacing on screen, so a dense grid keeps its line texture
         SIZE.node = CFG.nodeSize; SIZE.flash = CFG.flashSize;
@@ -985,6 +1007,7 @@
         if (!raw.rows.length) { overlay("No deployments recorded yet. This view will fill in as the crews deploy."); return false; }
         data = prepare(raw);
         data.clusters = dayClusters(data.rows, data.firstDay, data.nDays);   // where each day "pings"
+        data.dayBox = dayBoxes(data.rows, data.firstDay, data.nDays);       // where each day's work is, for the camera
         lastFetch = Date.now();
 
         // Replace layers with fresh ones built from the new data
@@ -1122,7 +1145,39 @@
       // ---- Animation loop ----------------------------------------------------
       // Phases: hold empty -> play 0..nDays -> hold full -> (refresh) -> repeat
       let phaseStart = performance.now(), phase = "holdStart", paused = false, pauseAt = 0, lastDraw = 0;
-      const playSeconds = () => Math.min(CFG.maxDuration, Math.max(CFG.minDuration, data.nDays * CFG.secondsPerDay));
+      const zoomCam = () => CFG.camera === "zoom" && !reducedMotion();
+      const playSeconds = () => zoomCam()
+        ? Math.min(CFG.zoomMaxDuration, Math.max(CFG.minDuration, data.nDays * CFG.zoomSecondsPerDay))
+        : Math.min(CFG.maxDuration, Math.max(CFG.minDuration, data.nDays * CFG.secondsPerDay));
+
+      // ---- Day-by-day camera: out -> into the day's work area -> back out ----
+      // Within each project day the camera eases from the full-survey view to a close-up
+      // of that day's nodes (mid-day) and back out by the day's end, so every day starts
+      // and ends on the whole survey. Zoom is interpolated on a log scale so it feels even.
+      let camLast = "";
+      function updateCamera(T) {
+        if (!camHome || !zoomCam()) return;
+        let res = camHome.res, cx = camHome.dcx, cy = camHome.dcy;
+        const d = Math.floor(T), box = phase === "play" && T >= 0 && T < data.nDays ? data.dayBox[d] : null;
+        if (box) {
+          const f = T - d;
+          const e = 0.5 - 0.5 * Math.cos(2 * Math.PI * f);                       // 0 at day start/end, 1 at mid-day
+          const fit = Math.max(box.w / camHome.availW, box.h / camHome.availH);    // res that fits the day's work
+          const target = Math.min(camHome.res, Math.max(fit, camHome.res / CFG.zoomMax));
+          res = camHome.res * Math.pow(target / camHome.res, e);
+          cx = camHome.dcx + (box.cx - camHome.dcx) * e;
+          cy = camHome.dcy + (box.cy - camHome.dcy) * e;
+        }
+        // Keep the HUD offset, scaled to the current zoom
+        const k = res / camHome.res;
+        cx += (camHome.cx - camHome.dcx) * k; cy += (camHome.cy - camHome.dcy) * k;
+        const key = `${cx.toFixed(1)},${cy.toFixed(1)},${res.toFixed(3)}`;
+        if (key === camLast) return;                                               // nothing moved
+        camLast = key;
+        const R = 6378137;
+        view.goTo({ center: [(cx / R) * 180 / Math.PI, (2 * Math.atan(Math.exp(cy / R)) - Math.PI / 2) * 180 / Math.PI], scale: res * 96 * 39.37 }, { animate: false })
+          .then(updateFurniture).catch(() => {});                                  // scale bar follows the zoom
+      }
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       // ---- Sonar ripples: when a new day begins, its busiest working areas "ping" ----
@@ -1155,6 +1210,7 @@
       function setT(T) {
         // Renderer update only when T actually moved (keeps GPU work minimal)
         if (T !== lastT) { mainLayer.renderer = rendererAt(T); lastT = T; }
+        updateCamera(T);
         const dayIdx = Math.min(Math.floor(T), data.nDays - 1);
         // A new day has started -> ping its working areas (only while playing forward)
         if (T < 0) lastDayIdx = -1;
