@@ -83,6 +83,7 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 |---|---|---|
 | `project` | `bolivia3d` | Preset to use (see `PRESETS` in `index.html`) |
 | `layerUrl` | preset | FeatureServer layer URL (include `/0`) |
+| `lite` | `auto` | Phone-friendly mode (auto on iPhone/iPad/Android): no ghost layer, no glow effects, no labels, fewer redraws. `1` forces it, `0` turns it off |
 | `authPopup` | `auto` | Sign-in style: `auto` = full-page redirect when opened directly (phones), popup when embedded in a dashboard |
 | `appId` | empty | OAuth Client ID (Option B) |
 | `dateField` | `utc_time` | Field that sequences the animation; converted to Bolivia local days (`timeZone`). Falls back to `local_time`, then the first date field |

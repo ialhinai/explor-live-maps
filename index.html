@@ -221,6 +221,10 @@
     .stat.gauge .lbl { text-align: center; }
 
     /* ---------- Small tiles: drop secondary HUD so the map breathes ---------- */
+    @media (max-width: 600px) {
+      #debug { display: none !important; }   /* phones in portrait: keep the map clear */
+      .ring-wrap { width: min(26vw, 110px); }
+    }
     @media (max-height: 560px) {
       #debug { display: none !important; }   /* short tiles: drop the metadata box so nothing overlaps */
     }
@@ -366,6 +370,7 @@
       flashSize: 11,                        // largest newborn node size in px
       autoSize: true,                       // scale node sizes to the node density on screen
       ghost: true,                          // faint full footprint underneath ("where this is heading")
+      lite: "auto",                         // phone-friendly mode: auto (phones/tablets), 1 (always), 0 (never)
       labels: true,                         // faint reference labels (towns, roads) over the basemap
       interactive: false,                   // allow pan/zoom (off so the dashboard page scrolls normally)
       rotation: 0,                          // map rotation in degrees (e.g. to square up the survey grid)
@@ -399,6 +404,16 @@
       const t = typeof CFG[k];
       CFG[k] = t === "number" ? Number(v) : t === "boolean" ? /^(1|true|yes)$/i.test(v) : v;
     }
+
+    // Phone-friendly mode. iPhones and iPads give a web page far less GPU memory than a desktop;
+    // tens of thousands of glowing points, a second "ghost" copy of them and screen-wide glow
+    // effects make Safari kill the tab ("A problem repeatedly occurred"). Lite mode keeps the
+    // look but drops the expensive parts: no ghost layer, no glow effects, no label layer,
+    // and fewer redraws per second.
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);     // iPadOS reports itself as a Mac
+    const LITE = CFG.lite === "auto" ? isMobile : /^(1|true|yes)$/i.test(String(CFG.lite));
+    if (LITE) { CFG.ghost = false; CFG.labels = false; }
 
     // Colour ramp for a node's "age" (days since it was deployed, relative to the playhead)
     const RAMP = {
@@ -1043,12 +1058,12 @@
         ghostLayer = CFG.ghost ? makeLayer(FeatureLayer, Graphic, data, { renderer: ghostRenderer() }) : null;
         mainLayer = makeLayer(FeatureLayer, Graphic, data, {
           renderer: rendererAt(-1),
-          // Glow on bright pixels only (threshold keeps settled blue nodes crisp)
-          effect: "bloom(1.5, 0.7px, 0.8)"
+          // Glow on bright pixels only (threshold keeps settled nodes crisp); off in lite mode (GPU memory)
+          ...(LITE ? {} : { effect: "bloom(1.5, 0.7px, 0.8)" })
         });
         map.addMany([ghostLayer, mainLayer].filter(Boolean));
         // Ripples always draw on top of the nodes
-        if (!rippleLayer) rippleLayer = new GraphicsLayer({ effect: "bloom(0.8, 0.4px, 0.2)", listMode: "hide" });
+        if (!rippleLayer) rippleLayer = new GraphicsLayer({ ...(LITE ? {} : { effect: "bloom(0.8, 0.4px, 0.2)" }), listMode: "hide" });
         map.remove(rippleLayer); map.add(rippleLayer);
 
         // Survey outline (read live, like the nodes); failures fall back to framing on the nodes
@@ -1073,6 +1088,7 @@
             ["day basis", raw.meta.zone], ["first", dateFmt.format(d0)], ["last", dateFmt.format(d1)],
             ["days", data.nDays], ["fetched", timeFmt.format(new Date())]];
           if (outline.status) metaRows.push(["outline", outline.status]);
+          if (LITE) metaRows.push(["mode", "phone (lite)"]);
           renderMeta();
         }
         hideOverlay();
@@ -1264,7 +1280,7 @@
       async function tick(now) {
         requestAnimationFrame(tick);
         if (!data || paused) return;
-        if (now - lastDraw < 30) return;          // ~33 fps is plenty and kinder to dashboards
+        if (now - lastDraw < (LITE ? 60 : 30)) return;   // ~33 fps on desktop, ~16 fps on phones (kinder to memory and battery)
         lastDraw = now;
         const el = (now - phaseStart) / 1000;
 
