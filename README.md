@@ -29,7 +29,7 @@ Your daily deployment notebook appends to the hosted layer → the next loop sho
 | Time scrubber with a self-drawing daily line, month marks + glowing playhead | A temporal legend (Flourish-style): the eye always knows *when* it is; click to jump to any day |
 | Sonar ripples where each day's crews start | Draws the eye to where work moved that day, without another chart |
 | Hold at start and end | Time to read the final state before the loop restarts |
-| Day boundary from `local_time` | Bolivia wall-clock days, no UTC-midnight drift |
+| Day boundary from `utc_time` converted to America/La_Paz | Bolivia calendar days, no UTC-midnight drift |
 
 ---
 
@@ -84,24 +84,27 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `project` | `bolivia3d` | Preset to use (see `PRESETS` in `index.html`) |
 | `layerUrl` | preset | FeatureServer layer URL (include `/0`) |
 | `appId` | empty | OAuth Client ID (Option B) |
-| `dateField` | `local_time` | Field that sequences the animation; falls back to `utc_time`, then the first date field |
+| `dateField` | `utc_time` | Field that sequences the animation; converted to Bolivia local days (`timeZone`). Falls back to `local_time`, then the first date field |
 | `tzMode` | `auto` | `wallclock` = stored value is local clock time; or an IANA zone such as `America/La_Paz` for true UTC fields |
 | `nodeColor` | `55FF00` | Theme colour as hex (settled nodes, title, day counter, scrubber line), e.g. `7ED957`, to match the dashboard map |
 | `brightness` | `0.85` | Satellite basemap brightness (1 = original, lower = darker) |
 | `basemap` | `imagery` | `imagery` (dimmed satellite), `hillshade`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
-| `secondsPerDay` | `1.0` | Playback speed (higher = slower) |
-| `minDuration` / `maxDuration` | `12` / `75` | Bounds on total loop length in seconds (keeps long projects watchable) |
+| `secondsPerDay` | `1.3` | Playback speed (higher = slower) |
+| `minDuration` / `maxDuration` | `12` / `90` | Bounds on total loop length in seconds (keeps long projects watchable) |
 | `holdStart` / `holdEnd` | `1.5` / `6` | Pauses before and after each run, in seconds |
 | `refreshMinutes` | `20` | Re-query between loops when data is older than this |
 | `reloadHours` | `12` | Full page reload interval |
 | `nodeSize` / `flashSize` | `3.2` / `11` | Maximum marker sizes in px |
 | `autoSize` | `true` | Shrinks markers on dense / small views so the line texture stays visible |
+| `target` | `56588` | Planned total deployments for the progress ring (0 hides it) |
+| `panX` | `0.06` | Nudges the survey right (+) or left (-), as a fraction of the free map width |
+| `padding` | `0.03` | Margin around the survey as a fraction of its size; raise (e.g. `0.15`) to zoom out |
 | `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
 | `interactive` | `false` | Allow pan/zoom (off so scrolling the dashboard is not captured) |
 | `demo` | `false` | Synthetic data, no sign-in |
-| `debug` | `false` | Diagnostics panel |
+| `debug` | `true` | Metadata block under the counters (source, records, dates); `?debug=0` hides it |
 
 Use the round button (or Space) to pause and resume; click anywhere on the scrubber to jump to that day.
 
