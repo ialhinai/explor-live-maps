@@ -22,7 +22,7 @@ Your daily deployment notebook appends to the hosted layer → the next loop sho
 
 | Choice | Why |
 |---|---|
-| Day-by-day camera (optional) | Each day dives into the crews' work area and returns to the full survey; `camera=static` keeps a fixed frame |
+| Pan camera at one fixed zoom | Follows the crews' work day to day without zooming; `camera=static` keeps the whole survey in view |
 | White → yellow → lime → light green "cooling" ramp | Makes the *new* stand out (avoids change blindness) while the history stays readable; light green matches the nodes on the dashboard map |
 | Bloom on bright pixels only | Firefly glow on fresh nodes, crisp settled grid |
 | Faint ghost of the full footprint | Viewer sees where the spread is heading |
@@ -102,9 +102,9 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `panX` | `0.06` | Nudges the survey right (+) or left (-), as a fraction of the free map width |
 | `outlineUrl` | Ibibobo outline | Survey boundary drawn on the map and used for a steady frame (`""` = none) |
 | `scaleKm` | `5` | Scale bar length in km (`0` = automatic) |
-| `camera` | `zoom` | `zoom`: each day the camera dives into that day's work area and pulls back out; `static`: fixed frame |
-| `zoomSecondsPerDay` / `zoomMaxDuration` | `2.4` / `120` | Playback speed and longest loop while `camera=zoom` |
-| `zoomMax` | `3.5` | Deepest zoom-in, as a multiple of the full-survey view |
+| `camera` | `pan` | `pan`: one fixed zoom, gliding from each day's work area to the next (zooms in once at loop start, out once at the end); `static`: whole survey, no motion |
+| `camSecondsPerDay` / `camMaxDuration` | `1.8` / `100` | Playback speed and longest loop while the camera pans |
+| `panZoom` | `2` | How much closer than the whole-survey view the pan camera sits |
 | `padding` | `0.03` | Margin around the survey as a fraction of its size; raise (e.g. `0.15`) to zoom out |
 | `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
 | `interactive` | `false` | Allow pan/zoom (off so scrolling the dashboard is not captured) |
