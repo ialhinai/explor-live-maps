@@ -93,7 +93,7 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `basemap` | `imagery` | `imagery` (dimmed satellite), `hillshade`, or `dark` |
 | `labels` | `true` | Faint reference labels |
 | `ghost` | `true` | Faint footprint of all nodes |
-| `secondsPerDay` | `1.3` | Playback speed (higher = slower) |
+| `secondsPerDay` | `1.0` | Playback speed (higher = slower) |
 | `minDuration` / `maxDuration` | `12` / `90` | Bounds on total loop length in seconds (keeps long projects watchable) |
 | `holdStart` / `holdEnd` | `1.5` / `6` | Pauses before and after each run, in seconds |
 | `refreshMinutes` | `20` | Re-query between loops when data is older than this |
@@ -105,9 +105,11 @@ Every setting can be overridden in the URL, e.g. `?project=bolivia3d&basemap=ima
 | `outlineUrl` | Ibibobo outline | Survey boundary drawn on the map and used for a steady frame (`""` = none) |
 | `outlineSeconds` / `outlinePause` / `camMoveSeconds` | `2.5` / `1.2` / `1.8` | Opening: outline traces on the whole survey, pauses, then the camera moves in to day 1 |
 | `scrim` | `0.55` | Darkness of the soft band behind the left text (`0` = off, `0.8` = strong) |
+| `where` | `index_ = 1` | Filter on the node layer; matches the dashboard gauge |
+| `outlineColor` | `B040FF` | Outline colour (purple, like the project map) |
 | `scaleKm` | `5` | Scale bar length in km (`0` = automatic) |
 | `camera` | `pan` | `pan`: one fixed zoom, gliding from each day's work area to the next (zooms in once at loop start, out once at the end); `static`: whole survey, no motion |
-| `camSecondsPerDay` / `camMaxDuration` | `1.8` / `100` | Playback speed and longest loop while the camera pans |
+| `camSecondsPerDay` / `camMaxDuration` | `1.4` / `100` | Playback speed and longest loop while the camera pans |
 | `panZoom` | `2` | How much closer than the whole-survey view the pan camera sits |
 | `padding` | `0.03` | Margin around the survey as a fraction of its size; raise (e.g. `0.15`) to zoom out |
 | `rotation` | `0` | Map rotation in degrees, to square up the survey grid |
